@@ -1,0 +1,32 @@
+name: apv1
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - scikit-image
+  - scikit-learn
+  - tqdm
+  - pyyaml
+  - jupyterlab
+  - ipykernel
+  - pillow
+  - imageio
+  - plotly
+  - seaborn
+  - rich
+  - tabulate
+  - psutil
+  - pytest
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cpuonly
+  - pip
+  - pip:
+    - opencv-contrib-python
