@@ -1,0 +1,119 @@
+{
+ "summary": {
+  "vanilla": {
+   "th_fixed": 3.0,
+   "th_best": 3.0,
+   "auc_fixed": [
+    0.19732307947930117,
+    0.40000042008139464,
+    0.44000025204883675
+   ],
+   "auc_best": [
+    0.19732307947930117,
+    0.40000042008139464,
+    0.44000025204883675
+   ],
+   "n_kpts": 636.875,
+   "n_matches": 204.75,
+   "match_prec": 0.2742658648388865,
+   "n_correct": 92.25,
+   "ransac_inl": 92.5,
+   "auc_fixed_i": [
+    0.19732307947930117,
+    0.40000042008139464,
+    0.44000025204883675
+   ],
+   "match_prec_i": 0.2742658648388865,
+   "auc_fixed_v": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "match_prec_v": NaN
+  },
+  "pool_grid": {
+   "th_fixed": 3.0,
+   "th_best": 4.0,
+   "auc_fixed": [
+    0.1959625337024456,
+    0.34627739072099056,
+    0.5108762391273501
+   ],
+   "auc_best": [
+    0.19468700970384314,
+    0.4313655357596855,
+    0.5588193214558113
+   ],
+   "n_kpts": 1024.0,
+   "n_matches": 310.75,
+   "match_prec": 0.24088320628448373,
+   "n_correct": 93.5,
+   "ransac_inl": 92.25,
+   "auc_fixed_i": [
+    0.1959625337024456,
+    0.34627739072099056,
+    0.5108762391273501
+   ],
+   "match_prec_i": 0.24088320628448373,
+   "auc_fixed_v": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "match_prec_v": NaN
+  },
+  "rl": {
+   "th_fixed": 3.0,
+   "th_best": 2.0,
+   "auc_fixed": [
+    0.19284906590321102,
+    0.424799451066195,
+    0.554879670639717
+   ],
+   "auc_best": [
+    0.19061097640529606,
+    0.5164305218246411,
+    0.6098583130947847
+   ],
+   "n_kpts": 1024.0,
+   "n_matches": 283.0,
+   "match_prec": 0.2424938904193562,
+   "n_correct": 92.75,
+   "ransac_inl": 91.5,
+   "auc_fixed_i": [
+    0.19284906590321102,
+    0.424799451066195,
+    0.554879670639717
+   ],
+   "match_prec_i": 0.2424938904193562,
+   "auc_fixed_v": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "match_prec_v": NaN
+  }
+ },
+ "diag": {},
+ "args": {
+  "dataset": "hpatches",
+  "root": "data\\hpatches-sequences-release\\hpatches-sequences-release",
+  "method": "sift",
+  "k": 1024,
+  "ratio": null,
+  "limit": 4,
+  "diag": false,
+  "out": "runs\\archive\\smoke_metrics",
+  "policy": [
+   "rl=runs\\train\\sift_rl_s0\\best.npz"
+  ],
+  "variants": [
+   "vanilla",
+   "pool_grid",
+   "rl"
+  ],
+  "tag": "",
+  "ths": null,
+  "workers": 2
+ }
+}

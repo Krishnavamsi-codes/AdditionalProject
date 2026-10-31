@@ -54,17 +54,24 @@ class FeatCache:
         self.method, self.k, self.P = method, k, pool_mult * k
         self.policies = policies or {}
         self.mem = {}
+        self.times = {}            # per image, ms: vanilla extraction, pool extraction, policy scoring
 
     def get(self, key, img):
         if key not in self.mem:
             if len(self.mem) > 64:
                 self.mem.pop(next(iter(self.mem)))
+            t0 = time.perf_counter()
             van = extract.detect_describe(img, self.method, self.k, pool=False)
+            t1 = time.perf_counter()
             pool = extract.detect_describe(img, self.method, self.k, pool=True)
             pool = extract.select(pool, self.P, "response")
+            t2 = time.perf_counter()
             if self.policies:      # policy scores over the same candidate pool
                 F = policy.candidate_features(pool, img, self.method)
                 pool["scores"] = {name: pol(F) for name, pol in self.policies.items()}
+            t3 = time.perf_counter()
+            n_pol = max(len(self.policies), 1)
+            self.times[key] = dict(t_van=1e3 * (t1 - t0), t_pool=1e3 * (t2 - t1), t_pol=1e3 * (t3 - t2) / n_pol)
             self.mem[key] = (van, pool)
         return self.mem[key]
 
@@ -144,15 +151,21 @@ def process_pair(n, s, args, fc, rows, diag):
         p0, p1 = f0["xy"][m[:, 0]], f1["xy"][m[:, 1]]
         row = dict(pair=n, variant=v, kind=s.get("kind", "md"),
                    nk0=len(f0["xy"]), nk1=len(f1["xy"]), nm=len(m))
+        for tk in ("t_van", "t_pool", "t_pol"):         # ms per image (mean of the two images)
+            row[tk] = (fc.times.get(k0, {}).get(tk, np.nan) + fc.times.get(k1, {}).get(tk, np.nan)) / 2
         # GT precision of putative matches
         if args.dataset == "hpatches":
             gt_err = np.linalg.norm(metrics.warp(p0, s["H"]) - p1, axis=1) if len(m) else np.zeros(0)
             row["prec"] = float((gt_err < 3).mean()) if len(m) else 0.0
             row["ncorr"] = int((gt_err < 3).sum())
+            for t in range(1, 11):                       # MMA (D2-Net / HPatches): reprojection error < t px
+                row[f"mma@{t}"] = float((gt_err < t).mean()) if len(m) else 0.0
         else:
             gt_err = metrics.sym_epipolar_px(p0, p1, s["K0"], s["K1"], s["R"], s["t"]) if len(m) else np.zeros(0)
             row["prec"] = float((gt_err < 2).mean()) if len(m) else 0.0
             row["ncorr"] = int((gt_err < 2).sum())
+            for t in range(1, 11):                       # MMA analogue: symmetric epipolar error < t px
+                row[f"mma@{t}"] = float((gt_err < t).mean()) if len(m) else 0.0
         for th in (args.ths or TH[args.dataset]):
             if args.dataset == "hpatches":
                 Hest, inl = metrics.estimate_homography(p0, p1, th)

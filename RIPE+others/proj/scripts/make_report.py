@@ -62,6 +62,48 @@ def boot_diff(df, a, b, th, ds, n=2000, seed=0):
     return obs, lo, hi
 
 
+# Published numbers (RIPE, ICCV 2025, Tab. 2: PoseLib, MNN; HPatches AUC @1/3/5 px, MegaDepth-1500 AUC @5/10/20 deg).
+# Copied as reported; their protocol uses all 1500 MegaDepth pairs and its own fixed settings -> reference only.
+PUBLISHED = {"megadepth": {"SIFT (RIPE paper)": [37.29, 50.61, 61.89], "RIPE (paper)": [55.11, 68.34, 78.03]},
+             "hpatches": {"SIFT (RIPE paper)": [29.98, 53.93, 65.01], "RIPE (paper)": [37.93, 58.93, 69.20]}}
+
+
+def runtime(sub, v, method):
+    """ms per image: vanilla extraction | pool extraction (+ policy scoring for learned selection)."""
+    if method == "surf" or "t_van" not in sub:
+        return np.nan                      # SURF is read from the py3.7 cache -> no meaningful timing
+    if v == "vanilla":
+        return sub.t_van.mean()
+    return sub.t_pool.mean() + (sub.t_pol.mean() if v.startswith(("rl", "sup")) else 0.0)
+
+
+def matched_metrics(df, ds, th, m):
+    """MMA / purity (inlier ratio) / speed / viewpoint robustness, one row per selection variant."""
+    has_mma = "mma@1" in df
+    unit = "px reprojection" if ds == "hpatches" else "px epipolar"
+    out = [f"\n**Matched metrics — {ds} {m.upper()}** (MMA = share of MNN matches with GT error < t {unit}; "
+           f"inlier ratio = RANSAC inliers / matches at th = {th}; runtime = ms per image, single thread)\n",
+           "| selection | MMA@1 | MMA@3 | MMA@5 | mean MMA 1-10 | inlier ratio | runtime ms |"
+           + (" viewpoint AUC @1/3/5 | illum. AUC @1/3/5 |" if ds == "hpatches" else ""),
+           "|---|---|---|---|---|---|---|" + ("---|---|" if ds == "hpatches" else "")]
+    for v in ORDER:
+        sub = df[df.variant == v]
+        if sub.empty:
+            continue
+        if has_mma:
+            mm = [sub[f"mma@{t}"].mean() for t in range(1, 11)]
+            mma = f"{100 * mm[0]:.1f} | {100 * mm[2]:.1f} | {100 * mm[4]:.1f} | {100 * np.mean(mm):.1f}"
+        else:
+            mma = "– | – | – | –"
+        ir = (sub[f"inl@{th}"] / sub.nm.clip(lower=1)).mean()
+        rt = runtime(sub, v, m)
+        row = f"| {NICE[v]} | {mma} | {100 * ir:.1f}% | {'–' if np.isnan(rt) else f'{rt:.0f}'} |"
+        if ds == "hpatches":
+            row += f" {f3(auc(df[df.kind == 'v'], v, th, ds))} | {f3(auc(df[df.kind == 'i'], v, th, ds))} |"
+        out.append(row)
+    return out
+
+
 def f3(x):
     return " / ".join(f"{100 * v:.1f}" for v in x)
 
@@ -73,7 +115,12 @@ def main():
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     R = load(a.eval)
-    md, sig, summary = ["# Results (fixed RANSAC threshold chosen on vanilla, applied to every variant)\n"], \
+    md = ["# Results (fixed RANSAC threshold chosen on vanilla, applied to every variant)\n",
+          "Published reference (copied from the RIPE paper, Tab. 2; full benchmark, their settings — not re-run here):\n",
+          "| method | MegaDepth-1500 AUC @5/10/20° | HPatches AUC @1/3/5 px |", "|---|---|---|"]
+    md += [f"| {k} | {' / '.join(map(str, PUBLISHED['megadepth'][k]))} | {' / '.join(map(str, PUBLISHED['hpatches'][k]))} |"
+           for k in PUBLISHED["megadepth"]]
+    sig, summary = \
         ["# Paired bootstrap (95% CI) of mean-AUC difference over test pairs\n",
          "| dataset | method | comparison | Δ mean AUC (pts) | 95% CI | significant |", "|---|---|---|---|---|---|"], []
     for ds in ("hpatches", "megadepth"):
@@ -112,6 +159,7 @@ def main():
                           f"{d['roc_auc_response']:.3f}; share of the pool's correct matches kept by top-K response = "
                           f"{100 * d['frac_correct_in_topK']:.0f}%; correct-match rate per response quartile = "
                           f"{', '.join(f'{100 * x:.1f}%' for x in d['useful_rate_by_quartile'])}.")
+            md += matched_metrics(df, ds, th, m)
             have = set(df.variant)
             for x, y in (("rl", "vanilla"), ("rl", "pool_grid"), ("rl", "pool_resp"), ("rl", "sup"), ("rl_grid", "vanilla"),
                          ("rl_grid", "pool_grid"), ("rl_grid", "sup_grid"), ("sup", "vanilla"), ("pool_grid", "vanilla"),

@@ -28,6 +28,7 @@ function Eval($m, $ds, $tag, $extra) {
            "--workers", $W, "--out", "runs\eval") + $extra
     if ($tag) { $a += @("--tag", $tag) }      # PS 5.1 drops empty-string args to native commands
     & $py @a *> "runs\logs\eval_${ds}_${m}$tag.log"
+    & $py proj\scripts\make_report.py *> runs\logs\report.log      # keep runs/report/*.md up to date
 }
 
 # 1) policies (seed 0): RL + supervised ablation on the same pseudo-labels
@@ -57,4 +58,5 @@ foreach ($m in $seedMethods) {
     Eval $m "megadepth" "_seeds" ($pol + @("--limit", "500", "--ths", "1.0", "1.5",
         "--variants", "vanilla", "rl_s1", "rl_s1_grid", "rl_s2", "rl_s2_grid"))
 }
+& $py proj\scripts\make_report.py *> runs\logs\report.log
 "[$(Get-Date -f HH:mm)] ALL DONE"
