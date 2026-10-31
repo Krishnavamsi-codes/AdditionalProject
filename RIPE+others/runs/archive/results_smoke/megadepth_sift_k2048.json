@@ -1,0 +1,122 @@
+{
+ "summary": {
+  "vanilla": {
+   "th_fixed": 1.5,
+   "th_best": 1.5,
+   "auc_fixed": [
+    0.0,
+    0.7466899098540642,
+    0.8733449549270322
+   ],
+   "auc_best": [
+    0.0,
+    0.7466899098540642,
+    0.8733449549270322
+   ],
+   "n_kpts": 2048.0,
+   "n_matches": 604.0,
+   "match_prec": 0.05132450331125828,
+   "n_correct": 31.0,
+   "ransac_inl": 38.0
+  },
+  "pool_resp": {
+   "th_fixed": 1.5,
+   "th_best": 0.5,
+   "auc_fixed": [
+    0.0,
+    0.0,
+    0.5235262842909445
+   ],
+   "auc_best": [
+    0.0,
+    0.0,
+    0.5364324666299086
+   ],
+   "n_kpts": 2048.0,
+   "n_matches": 567.0,
+   "match_prec": 0.05291005291005291,
+   "n_correct": 30.0,
+   "ransac_inl": 36.0
+  },
+  "pool_grid": {
+   "th_fixed": 1.5,
+   "th_best": 0.5,
+   "auc_fixed": [
+    0.7011803790892513,
+    0.8505901895446257,
+    0.9252950947723129
+   ],
+   "auc_best": [
+    0.8157074936635296,
+    0.9078537468317647,
+    0.9539268734158822
+   ],
+   "n_kpts": 2048.0,
+   "n_matches": 618.0,
+   "match_prec": 0.18122977346278318,
+   "n_correct": 112.0,
+   "ransac_inl": 125.0
+  },
+  "pool_rand": {
+   "th_fixed": 1.5,
+   "th_best": 2.0,
+   "auc_fixed": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "auc_best": [
+    0.0,
+    0.0,
+    0.6786114895739213
+   ],
+   "n_kpts": 2048.0,
+   "n_matches": 615.0,
+   "match_prec": 0.04715447154471545,
+   "n_correct": 29.0,
+   "ransac_inl": 36.0
+  },
+  "pool_resp2x": {
+   "th_fixed": 1.5,
+   "th_best": 3.0,
+   "auc_fixed": [
+    0.0,
+    0.60156919728625,
+    0.8007845986431251
+   ],
+   "auc_best": [
+    0.0,
+    0.7310502960524456,
+    0.8655251480262228
+   ],
+   "n_kpts": 4096.0,
+   "n_matches": 1076.0,
+   "match_prec": 0.06598513011152417,
+   "n_correct": 71.0,
+   "ransac_inl": 70.0
+  }
+ },
+ "diag": {
+  "roc_auc_response": 0.31335294283407844,
+  "roc_auc_size": 0.6354878920035341,
+  "useful_rate_by_quartile": [
+   0.01416015625,
+   0.01904296875,
+   0.04052734375,
+   0.07568359375
+  ],
+  "frac_correct_in_topK": 0.09477124183006536,
+  "pool_correct": 306.0
+ },
+ "args": {
+  "dataset": "megadepth",
+  "root": "data\\megadepth1500\\megadepth1500",
+  "method": "sift",
+  "k": 2048,
+  "ratio": null,
+  "limit": 1,
+  "diag": true,
+  "out": "results_smoke",
+  "workers": 1
+ }
+}

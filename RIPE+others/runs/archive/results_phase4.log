@@ -1,0 +1,39 @@
+﻿[sift/hpatches] pair 0  3s
+[sift/hpatches] pair 50  61s
+[sift/hpatches] pair 100  114s
+[sift/hpatches] pair 150  155s
+[sift/hpatches] pair 200  198s
+[sift/hpatches] pair 250  241s
+[sift/hpatches] pair 300  290s
+[sift/hpatches] pair 350  341s
+[sift/hpatches] pair 400  386s
+[sift/hpatches] pair 450  436s
+[sift/hpatches] pair 500  472s
+vanilla      AUC(fixed th=4.0) [31.84 63.46 74.13]  best(th=4.0) [31.84 63.46 74.13]  kpts 940 matches 410 prec 0.569
+pool_resp    AUC(fixed th=4.0) [32.3  64.13 75.36]  best(th=4.0) [32.3  64.13 75.36]  kpts 1018 matches 441 prec 0.574
+pool_grid    AUC(fixed th=4.0) [33.87 64.55 75.27]  best(th=4.0) [33.87 64.55 75.27]  kpts 1018 matches 400 prec 0.491
+pool_rand    AUC(fixed th=4.0) [27.43 57.37 68.3 ]  best(th=4.0) [27.43 57.37 68.3 ]  kpts 1018 matches 345 prec 0.239
+pool_resp2x  AUC(fixed th=4.0) [36.13 66.77 76.99]  best(th=4.0) [36.13 66.77 76.99]  kpts 1995 matches 840 prec 0.560
+diag: {"roc_auc_response": 0.6136979879826198, "roc_auc_size": 0.6076961629454196, "useful_rate_by_quartile": [0.30895795156585537, 0.26713810065909094, 0.2226221325468925, 0.1595303840984541], "frac_correct_in_topK": 0.42036750852833876, "pool_correct": 846.7518518518518}
+[orb/hpatches] pair 0  5s
+[orb/hpatches] pair 50  12s
+[orb/hpatches] pair 100  19s
+[orb/hpatches] pair 150  27s
+[orb/hpatches] pair 200  34s
+[orb/hpatches] pair 250  41s
+[orb/hpatches] pair 300  49s
+[orb/hpatches] pair 350  56s
+[orb/hpatches] pair 400  63s
+[orb/hpatches] pair 450  70s
+[orb/hpatches] pair 500  77s
+vanilla      AUC(fixed th=2.0) [20.98 45.05 56.89]  best(th=2.0) [20.98 45.05 56.89]  kpts 1006 matches 389 prec 0.516
+pool_resp    AUC(fixed th=2.0) [18.38 42.87 55.07]  best(th=2.0) [18.38 42.87 55.07]  kpts 1024 matches 379 prec 0.502
+pool_grid    AUC(fixed th=2.0) [24.49 51.01 62.27]  best(th=3.0) [23.34 51.95 64.03]  kpts 1024 matches 361 prec 0.456
+pool_rand    AUC(fixed th=2.0) [14.05 37.46 49.55]  best(th=2.0) [14.05 37.46 49.55]  kpts 1024 matches 348 prec 0.279
+pool_resp2x  AUC(fixed th=2.0) [23.98 49.66 61.43]  best(th=1.0) [28.72 48.51 58.94]  kpts 2043 matches 753 prec 0.509
+diag: {"roc_auc_response": 0.5644433359864093, "roc_auc_size": 0.5228206454034199, "useful_rate_by_quartile": [0.2519413295933527, 0.22732848105871592, 0.20485885999689055, 0.16830359463364938], "frac_correct_in_topK": 0.31450284146990154, "pool_correct": 870.0203703703704}
+[sift/megadepth] pair 0  76s
+[sift/megadepth] pair 50  474s
+[sift/megadepth] pair 100  898s
+[sift/megadepth] pair 150  1323s
+[sift/megadepth] pair 200  1719s
