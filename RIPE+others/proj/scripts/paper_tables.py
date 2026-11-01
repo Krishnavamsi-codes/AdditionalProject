@@ -87,18 +87,24 @@ def main_table():
                     cells.append(fmt(res[(m, v)][j], marks[(m, v, j)], std[m] if (v == "rl" and j == 3) else None))
             row = f"{name} & " + " & ".join(cells) + " \\\\"
             lines.append(row)
+        gain = []                                        # gain of the seed mean over vanilla, coloured by sign
+        for m in ("orb", "brisk"):
+            for j in range(4):
+                d = round(res[(m, "rl")][j] - res[(m, "vanilla")][j], 1) + 0.0   # no "-0.0"
+                gain.append(f"\\textcolor{{{'good' if d >= 0 else 'bad'}}}{{{d:+.1f}}}")
+        lines.append("\\quad\\textit{gain over vanilla} & " + " & ".join(gain) + " \\\\")
     return "\n".join(l for l in lines if l)
 
 
 def matched_table():
     A = {m: json.loads((ROOT / "runs" / "report" / f"paper_analysis_{m}.json").read_text())["summary"]
          for m in ("orb", "brisk")}
-    rows_v = [("vanilla", "Vanilla"), ("pool_grid", "Pool, grid"), ("rl", "\\ours")]
+    rows_v = [("vanilla", "Vanilla"), ("pool_resp", "Pool, top-$K$"), ("pool_grid", "Pool, grid"), ("rl", "\\ours")]
     lines = []
     for m in ("orb", "brisk"):
         df = pd.read_csv(EVAL / f"megadepth_{m}_k2048_pairs.csv")
         t = TIMING["megadepth"][m]
-        rt = {"vanilla": t["vanilla"], "pool_grid": t["pool"], "rl": t["rl_total"]}
+        rt = {"vanilla": t["vanilla"], "pool_resp": t["pool"], "pool_grid": t["pool"], "rl": t["rl_total"]}
         vals = {}
         for v, _ in rows_v:
             sub = df[df.variant == v]
@@ -113,7 +119,7 @@ def matched_table():
             cells = [fmt(vals[v][j], marks[(v, j)]) for j in range(5)]
             r = f"{vals[v][5]:.0f}"
             cells.append({"B": f"\\B{{{r}}}", "U": f"\\U{{{r}}}", "": r}[marks[(v, 5)]])
-            lead = f"\\multirow{{3}}{{*}}{{{m.upper()}}}" if i == 0 else ""
+            lead = f"\\multirow{{{len(rows_v)}}}{{*}}{{{m.upper()}}}" if i == 0 else ""
             lines.append(f"{lead} & {name} & " + " & ".join(cells) + " \\\\")
         if m == "orb":
             lines.append("\\midrule")

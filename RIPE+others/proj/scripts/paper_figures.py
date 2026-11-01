@@ -31,6 +31,7 @@ LABEL = {"vanilla": "Vanilla OpenCV", "pool_resp": "Pool, top-$K$ response", "po
 LS = {"vanilla": "-", "pool_resp": ":", "pool_grid": "--", "sup": "-.", "rl": "-"}
 GOOD, BAD, KP = "#1FA35B", "#E05A1B", "#F7D23E"
 FULL, COL = 6.875, 3.25                    # CVPR text and column width (in)
+MAX_LINES = 70                             # inlier lines drawn per pair panel
 
 plt.rcParams.update({
     "font.family": "serif", "font.serif": ["Times New Roman", "Times", "DejaVu Serif"], "mathtext.fontset": "stix",
@@ -121,8 +122,9 @@ def draw_pair(ax, method, s, variant, title_col):
     ax.imshow(cv, cmap="gray", vmin=0, vmax=255, alpha=0.85, interpolation="lanczos")
     for f, o in ((F0, o0), (F1, o1)):
         ax.scatter(f["xy"][:, 0] + o[0], f["xy"][:, 1] + o[1], s=0.6, c=KP, lw=0, alpha=0.8, rasterized=True)
-    for a, b, g in sorted(zip(q0, q1, good), key=lambda z: z[2]):          # correct lines on top
-        ax.plot([a[0] + o0[0], b[0] + o1[0]], [a[1] + o0[1], b[1] + o1[1]], lw=0.45,
+    show = np.random.default_rng(0).permutation(len(q0))[:MAX_LINES]    # readable: a fixed random subset
+    for a, b, g in sorted(zip(q0[show], q1[show], good[show]), key=lambda z: z[2]):   # correct lines on top
+        ax.plot([a[0] + o0[0], b[0] + o1[0]], [a[1] + o0[1], b[1] + o1[1]], lw=0.55,
                 c=GOOD if g else BAD, alpha=0.9, solid_capstyle="round")
     ax.set_axis_off()
     ax.text(0.02, 0.015, f"pose error {err:.1f}°\n{len(q0)} inliers, {int(good.sum())} correct",
@@ -373,7 +375,291 @@ def thumbnails(out, stats, pairs):
     print("   thumbnails")
 
 
-FIGS = ["teaser", "supp", "auc", "forest", "pareto", "coverage", "matchability", "thumbs"]
+def fig_landscape(out):
+    """Vanilla OpenCV -> RIPE-Select (five-seed mean) on MegaDepth-1500, per AUC threshold and mean."""
+    labels = ["AUC@5°", "AUC@10°", "AUC@20°", "mean"]
+    fig, ax = plt.subplots(figsize=(COL, 1.95))
+    yt, yl = [], []
+    for g, m in enumerate(("brisk", "orb")):          # ORB drawn on top
+        df = pd.read_csv(EVAL / f"megadepth_{m}_k2048_pairs.csv")
+        v = auc(errs(df, "vanilla"), [5, 10, 20])
+        r = np.mean([auc(e, [5, 10, 20]) for e in seed_errs(m, df)], 0)
+        v, r = np.append(v, v.mean()), np.append(r, r.mean())
+        for i in range(4):
+            y = g * 5.2 + (3 - i)
+            bold = i == 3
+            ax.plot([v[i], r[i]], [y, y], color=C["rl"], lw=2.4 if bold else 1.6, alpha=0.35, solid_capstyle="round")
+            ax.plot(v[i], y, "o", ms=4.5 if bold else 3.8, color=C["vanilla"])
+            ax.plot(r[i], y, "*", ms=8 if bold else 6.5, color=C["rl"])
+            ax.text(r[i] + 1.2, y, f"+{r[i] - v[i]:.1f}", va="center", fontsize=6.8, color=C["rl"],
+                    fontweight="bold")
+            yt.append(y); yl.append(labels[i])
+        ax.text(9.5, g * 5.2 + 3.85, m.upper(), fontsize=8.5, fontweight="bold", va="bottom")
+    ax.set_yticks(yt, yl); ax.tick_params(axis="y", length=0)
+    ax.set_ylim(-0.7, 9.6)
+    ax.set_xlim(10, 66); ax.set_xlabel("pose AUC (%), MegaDepth-1500", labelpad=1)
+    ax.grid(axis="x", alpha=.25, lw=.4)
+    ax.spines["left"].set_visible(False)
+    leg = [Line2D([], [], marker="o", lw=0, ms=4, color=C["vanilla"], label="OpenCV (vanilla)"),
+           Line2D([], [], marker="*", lw=0, ms=7, color=C["rl"], label="+ RIPE-Select (5 seeds)")]
+    fig.legend(handles=leg, loc="upper center", ncol=2, bbox_to_anchor=(0.55, 1.06), fontsize=6.8,
+               handletextpad=0.2, columnspacing=1.2)
+    save(fig, out, "landscape.pdf")
+
+
+def pair_scores(e):
+    """Per-pair contribution to mean AUC@5/10/20 (the mean of these over pairs is the mean AUC)."""
+    e = np.nan_to_num(e, nan=np.inf)
+    return 100 * np.mean([np.clip(1 - e / t, 0, 1) for t in (5, 10, 20)], 0)
+
+
+def fig_gains(out):
+    """(a) gain of every seed over vanilla with the across-seed 95% CI; (b) sorted per-pair gains."""
+    from scipy import stats as st
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(COL, 1.55), gridspec_kw=dict(width_ratios=[0.8, 1.4]))
+    info = {}
+    for i, m in enumerate(("orb", "brisk")):
+        df = pd.read_csv(EVAL / f"megadepth_{m}_k2048_pairs.csv")
+        van = auc(errs(df, "vanilla"), [5, 10, 20]).mean()
+        E = seed_errs(m, df)
+        g = np.array([auc(e, [5, 10, 20]).mean() - van for e in E])
+        ci = st.t.ppf(0.975, len(g) - 1) * g.std(ddof=1) / np.sqrt(len(g))
+        jit = np.linspace(-0.12, 0.12, len(g))
+        a1.scatter(i + jit, g, s=11, color=C["rl"], alpha=0.75, lw=0, zorder=3)
+        a1.errorbar(i + 0.3, g.mean(), yerr=ci, fmt="D", ms=3.5, color="black", capsize=2, elinewidth=0.9)
+        d = np.mean([pair_scores(e) for e in E], 0) - pair_scores(errs(df, "vanilla"))
+        d = np.sort(d)[::-1]
+        x = np.linspace(0, 100, len(d))
+        ls = "-" if m == "orb" else "--"
+        a2.plot(x, d, color="black", lw=0.9, ls=ls, label=m.upper())
+        if m == "orb":
+            a2.fill_between(x, 0, d, where=d > 0, color=GOOD, alpha=0.25, lw=0)
+            a2.fill_between(x, 0, d, where=d < 0, color=BAD, alpha=0.25, lw=0)
+        info[m] = {"seed_gains": g.round(2).tolist(), "ci95": round(float(ci), 2),
+                   "pairs_better": round(float((d > 0.5).mean() * 100), 1),
+                   "pairs_worse": round(float((d < -0.5).mean() * 100), 1)}
+    a1.axhline(0, color="black", lw=0.6)
+    a1.set_xticks([0, 1], ["ORB", "BRISK"]); a1.set_xlim(-0.4, 1.55)
+    a1.set_ylim(0, 11); a1.set_ylabel("gain over vanilla\n(mean AUC points)", labelpad=1)
+    a1.set_title("(a) five seeds, 95% CI", pad=2)
+    a1.grid(axis="y", alpha=.25, lw=.4)
+    a2.axhline(0, color="black", lw=0.6)
+    a2.set_xlabel("test pairs, sorted (%)", labelpad=1); a2.set_ylabel("per-pair gain", labelpad=1)
+    a2.set_title("(b) 500 MegaDepth pairs, seed mean", pad=2)
+    a2.set_xlim(0, 100); a2.legend(loc="upper right", handlelength=1.6)
+    a2.grid(alpha=.25, lw=.4)
+    fig.subplots_adjust(wspace=0.42)
+    save(fig, out, "gains.pdf")
+    return info
+
+
+def fig_learned(out, stats, pairs):
+    """What the policy changes: keypoints it adds / drops against top-K response of the same pool, and the
+    cues its score correlates with (runs/report/policy_cues.json from paper_policy_cues.py)."""
+    s = pairs[stats["picks"]["orb"]["representative"]["pair"]]
+    img = s["img0"]
+    h, w = img.shape
+    R = json.loads((ROOT / "runs" / "report" / "policy_cues.json").read_text())
+    sets = {}
+    for m in ("orb", "brisk"):
+        F = features(m, s["name0"], img)
+        key = lambda f: {tuple(p) for p in np.round(f["xy"], 1)}
+        kr, ks = key(F["rl"]), key(extract.select(F["pool"], 2048, "response"))
+        sets[m] = np.array(sorted(kr - ks)), np.array(sorted(ks - kr))
+    allp = np.concatenate([p for a in sets.values() for p in a])           # zoom on where the keypoints are
+    (x0, y0), (x1, y1) = np.percentile(allp, 1, 0) - 15, np.percentile(allp, 99, 0) + 15
+    x0, y0, x1, y1 = max(x0, 0), max(y0, 0), min(x1, w), min(y1, h)
+    fig = plt.figure(figsize=(FULL, FULL * 0.27))
+    gs = fig.add_gridspec(1, 3, width_ratios=[(x1 - x0) / (y1 - y0)] * 2 + [1.25], wspace=0.06)
+    for j, m in enumerate(("orb", "brisk")):
+        ax = fig.add_subplot(gs[0, j])
+        add, drop = sets[m]
+        ax.imshow(img, cmap="gray", alpha=0.55)
+        ax.scatter(drop[:, 0], drop[:, 1], s=3.0, c=C["vanilla"], lw=0, alpha=0.8, rasterized=True)
+        ax.scatter(add[:, 0], add[:, 1], s=3.0, c=C["rl"], lw=0, alpha=0.9, rasterized=True)
+        ax.set_xlim(x0, x1); ax.set_ylim(y1, y0)
+        ax.set_axis_off()
+        ax.set_title(f"{m.upper()}: {100 * len(add) / 2048:.0f}% swapped", pad=2,
+                     fontweight="bold")
+    ax.legend(handles=[Line2D([], [], marker="o", lw=0, ms=3, color=C["rl"], label="added by the policy"),
+                       Line2D([], [], marker="o", lw=0, ms=3, color=C["vanilla"], label="dropped (top-K response)")],
+              loc="lower right", fontsize=6.3, framealpha=0.85, frameon=True, borderpad=0.3, handletextpad=0.1)
+    ax = fig.add_subplot(gs[0, 2])
+    cues = ["2nd-NN desc. distance", "NN desc. distance", "patch mean", "patch std", "patch gradient",
+            "local density", "log response"]
+    nice = {"2nd-NN desc. distance": "2nd-NN desc. dist.", "NN desc. distance": "NN desc. dist.",
+            "patch mean": "patch brightness", "patch std": "patch contrast", "patch gradient": "patch gradient",
+            "local density": "local density", "log response": "detector response"}
+    y = np.arange(len(cues))[::-1]
+    for off, m, col in ((0.18, "orb", C["rl"]), (-0.18, "brisk", "#B39DDB")):
+        v = [R[m]["spearman"][c][0] for c in cues]
+        ax.barh(y + off, v, height=0.34, color=col, label=m.upper())
+    ax.axvline(0, color="black", lw=0.6)
+    ax.set_yticks(y, [nice[c] for c in cues]); ax.tick_params(axis="y", length=0)
+    ax.set_xlabel("Spearman ρ with policy score", labelpad=1); ax.set_xlim(-0.7, 0.55)
+    ax.yaxis.tick_right(); ax.spines["left"].set_visible(False); ax.spines["right"].set_visible(True)
+    ax.legend(loc="lower left", fontsize=6.5, handlelength=1)
+    ax.grid(axis="x", alpha=.25, lw=.4)
+    ax.set_title("cues the score follows (40 images)", pad=2, fontweight="bold")
+    save(fig, out, "learned.pdf")
+
+
+def fig_training(out):
+    """Validation mean AUC (held-out Reichstag) over training for all five seeds, against plain response ranking."""
+    fig, axes = plt.subplots(1, 2, figsize=(COL, 1.45))
+    info = {}
+    for ax, m in zip(axes, ("orb", "brisk")):
+        best = []
+        for s in range(5):
+            L = json.loads((ROOT / "runs" / "train" / f"{m}_rl_s{s}" / "log.json").read_text())["log"]
+            st = [e["step"] for e in L]
+            v = [100 * np.mean(e["score"]["auc"]) for e in L]
+            ax.plot(st, v, color=C["rl"], lw=0.9, alpha=0.75, label="RIPE-Select (5 seeds)" if s == 0 else None)
+            i = int(np.argmax(v)); best.append(v[i])
+            ax.plot(st[i], v[i], "*", ms=5, color=C["rl"])
+        r = 100 * np.mean(L[0]["response"]["auc"])
+        ax.axhline(r, color=C["vanilla"], ls="--", lw=1.0, label="response ranking")
+        ax.set_title(m.upper(), pad=2, fontweight="bold")
+        ax.set_xlabel("training step", labelpad=1); ax.set_xlim(0, 1200); ax.set_xticks([0, 400, 800, 1200])
+        ax.grid(alpha=.25, lw=.4)
+        info[m] = {"response": round(r, 1), "best": [round(b, 1) for b in best]}
+    axes[0].set_ylabel("val. mean AUC (%)")
+    h, l = axes[0].get_legend_handles_labels()
+    fig.legend(h, l, loc="upper center", ncol=2, bbox_to_anchor=(0.5, 1.13), handlelength=1.8)
+    fig.subplots_adjust(wspace=0.3)
+    save(fig, out, "training.pdf")
+    return info
+
+
+def md_meta():
+    """Scene and ground-truth relative rotation angle (deg) of the 500 evaluated MegaDepth pairs, without images."""
+    views = {}
+    for line in (MD_ROOT / "views.txt").read_text().strip().split("\n"):
+        tok = line.strip().split(" ")
+        views[tok[0]] = datasets._parse_view(tok[1:])
+    pairs = [l.split(" ")[:2] for l in (MD_ROOT / "pairs.txt").read_text().strip().split("\n")]
+    pairs = pairs[::max(1, len(pairs) // 500)][:500]          # same evenly spaced subset as the evaluation
+    scene, ang = [], []
+    for n0, n1 in pairs:
+        R = views[n1][0] @ views[n0][0].T
+        ang.append(np.degrees(np.arccos(np.clip((np.trace(R) - 1) / 2, -1, 1))))
+        scene.append(n0.split("/")[0])
+    return np.array(scene), np.array(ang)
+
+
+def fig_difficulty(out):
+    """Mean pose AUC by viewpoint change (quartiles of the GT rotation angle) and by scene."""
+    scene, ang = md_meta()
+    q = np.quantile(ang, [0, .25, .5, .75, 1])
+    b = np.clip(np.searchsorted(q, ang, side="right") - 1, 0, 3)
+    fig, axes = plt.subplots(1, 2, figsize=(COL, 1.55), gridspec_kw=dict(width_ratios=[1.6, 1]))
+    info = {"rot_quartiles": q.round(1).tolist()}
+    groups = [("rot", [b == i for i in range(4)], [f"{q[i]:.0f}-{q[i + 1]:.0f}°" for i in range(4)]),
+              ("scene", [scene == s for s in ("0015", "0022")], ["0015", "0022"])]
+    for ax, (key, masks, names) in zip(axes, groups):
+        x = np.arange(len(masks))
+        for m in ("orb", "brisk"):
+            df = pd.read_csv(EVAL / f"megadepth_{m}_k2048_pairs.csv")
+            van = pair_scores(errs(df, "vanilla"))
+            rl = np.mean([pair_scores(e) for e in seed_errs(m, df)], 0)
+            off = -0.2 if m == "orb" else 0.2
+            hv = [van[k].mean() for k in masks]; hr = [rl[k].mean() for k in masks]
+            ax.bar(x + off - 0.09, hv, 0.18, color=C["vanilla"], alpha=1 if m == "orb" else 0.55)
+            ax.bar(x + off + 0.09, hr, 0.18, color=C["rl"], alpha=1 if m == "orb" else 0.55)
+            info[f"{key}_{m}"] = [[round(a, 1), round(c, 1)] for a, c in zip(hv, hr)]
+        ax.set_xticks(x, names); ax.grid(axis="y", alpha=.25, lw=.4)
+        ax.set_xlabel("GT rotation (quartiles)" if key == "rot" else "scene", labelpad=1)
+    axes[0].set_ylabel("mean pose AUC (%)")
+    leg = [plt.Rectangle((0, 0), 1, 1, color=C["vanilla"], label="ORB vanilla"),
+           plt.Rectangle((0, 0), 1, 1, color=C["rl"], label="ORB + ours"),
+           plt.Rectangle((0, 0), 1, 1, color=C["vanilla"], alpha=0.55, label="BRISK vanilla"),
+           plt.Rectangle((0, 0), 1, 1, color=C["rl"], alpha=0.55, label="BRISK + ours")]
+    fig.legend(handles=leg, loc="upper center", ncol=4, bbox_to_anchor=(0.5, 1.12), handlelength=1.0,
+               columnspacing=0.7, handletextpad=0.3, fontsize=6.5)
+    fig.subplots_adjust(wspace=0.25)
+    save(fig, out, "difficulty.pdf")
+    return info
+
+
+def gallery_picks(m="orb", qs=(0.95, 0.8, 0.6)):
+    """Pairs at fixed quantiles of the seed-0 per-pair gain: chosen by rule, not by eye."""
+    df = pd.read_csv(EVAL / f"megadepth_{m}_k2048_pairs.csv")
+    d = pair_scores(errs(df, "rl")) - pair_scores(errs(df, "vanilla"))
+    order = np.argsort(d)
+    idx = [int(order[int(round(qq * (len(d) - 1)))]) for qq in qs]
+    return [(i, qq, float(d[i])) for i, qq in zip(idx, qs)]
+
+
+def draw_side(ax, method, s, variant):
+    """img0 | img1 side by side with a subset of the RANSAC inliers (green correct, orange wrong)."""
+    F0 = features(method, s["name0"], s["img0"])[variant]
+    F1 = features(method, s["name1"], s["img1"])[variant]
+    q0, q1, good, err = match_pair(method, F0, F1, s)
+    import cv2
+    H = 480                                                    # both images at the same height
+    fa, fb = H / s["img0"].shape[0], H / s["img1"].shape[0]
+    a = cv2.resize(s["img0"], (round(s["img0"].shape[1] * fa), H), interpolation=cv2.INTER_AREA)
+    b = cv2.resize(s["img1"], (round(s["img1"].shape[1] * fb), H), interpolation=cv2.INTER_AREA)
+    W = 2 * H * 4 // 3 + 12                                    # fixed 4:3 + 4:3 canvas, images centred
+    cv = np.full((H, max(W, a.shape[1] + 12 + b.shape[1])), 255, np.uint8)
+    xa = max(0, H * 4 // 3 - a.shape[1]) // 2; xb = cv.shape[1] - b.shape[1] - max(0, H * 4 // 3 - b.shape[1]) // 2
+    cv[:, xa:xa + a.shape[1]] = a; cv[:, xb:xb + b.shape[1]] = b
+    ax.imshow(cv, cmap="gray", vmin=0, vmax=255, alpha=0.85, interpolation="lanczos")
+    show = np.random.default_rng(0).permutation(len(q0))[:50]
+    for u, v, g in sorted(zip(q0[show], q1[show], good[show]), key=lambda z: z[2]):
+        ax.plot([u[0] * fa + xa, v[0] * fb + xb], [u[1] * fa, v[1] * fb], lw=0.45, c=GOOD if g else BAD, alpha=0.9)
+    ax.set_axis_off()
+    ax.text(0.01, 0.03, f"error {err:.1f}°, {int(good.sum())}/{len(q0)} inliers correct", transform=ax.transAxes,
+            fontsize=6.3, va="bottom", bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none", alpha=0.88))
+    return float(err)
+
+
+def fig_gallery(out, picks, pairs):
+    """Three ORB pairs at fixed percentiles of the per-pair gain: vanilla (top) vs ours (bottom)."""
+    fig, axes = plt.subplots(2, 3, figsize=(FULL, 2.05))
+    info = []
+    for j, (i, qq, d) in enumerate(picks):
+        s = pairs[i]
+        e = [draw_side(axes[r, j], "orb", s, v) for r, v in enumerate(("vanilla", "rl"))]
+        axes[0, j].set_title(f"{int(qq * 100)}th percentile of the per-pair gain", pad=2, fontsize=7.5)
+        info.append({"pair": i, "quantile": qq, "gain": round(d, 1), "err": [round(x, 1) for x in e]})
+    for r, v in enumerate(("vanilla", "rl")):
+        axes[r, 0].text(-0.03, 0.5, "Vanilla ORB" if v == "vanilla" else "RIPE-Select", rotation=90, color=C[v],
+                        transform=axes[r, 0].transAxes, va="center", ha="right", fontweight="bold", fontsize=8)
+    fig.subplots_adjust(wspace=0.03, hspace=0.06, left=0.02, right=1, top=0.93, bottom=0)
+    save(fig, out, "gallery.pdf")
+    return info
+
+
+def fig_scoremap(out, stats, pairs):
+    """Detector response vs learned score over the candidate pool of one image, as smoothed rank maps."""
+    import cv2
+    from matplotlib.colors import LinearSegmentedColormap
+    s = pairs[stats["picks"]["orb"]["representative"]["pair"]]
+    img = s["img0"]; h, w = img.shape
+    pool = features("orb", s["name0"], img)["pool"]
+    pol = policy.NumpyPolicy(ROOT / "runs" / "train" / "orb_rl_s0" / "best.npz")
+    sc = pol(policy.candidate_features(pool, img, "orb"))
+    fig, axes = plt.subplots(1, 2, figsize=(COL, COL / 2 * h / w + 0.2))
+    xy = np.clip(pool["xy"].astype(int), 0, [w - 1, h - 1])
+    for ax, (name, v, col) in zip(axes, (("detector response", pool["response"], C["vanilla"]),
+                                         ("learned score", sc, C["rl"]))):
+        r = np.argsort(np.argsort(v)) / (len(v) - 1)            # rank in [0, 1]
+        num = np.zeros((h, w), np.float32); den = np.zeros((h, w), np.float32)
+        np.add.at(num, (xy[:, 1], xy[:, 0]), r); np.add.at(den, (xy[:, 1], xy[:, 0]), 1)
+        num = cv2.GaussianBlur(num, (0, 0), 14); den = cv2.GaussianBlur(den, (0, 0), 14)
+        M = np.where(den > 1e-4, num / np.maximum(den, 1e-9), np.nan)
+        cmap = LinearSegmentedColormap.from_list(name, ["#F2F2F2", col])
+        ax.imshow(img, cmap="gray", alpha=0.6)
+        ax.imshow(M, cmap=cmap, alpha=0.75, vmin=0.2, vmax=0.8)
+        ax.set_axis_off(); ax.set_title(name, color=col, fontweight="bold", pad=2)
+    fig.subplots_adjust(wspace=0.04, left=0, right=1, bottom=0, top=0.86)
+    save(fig, out, "scoremap.pdf")
+
+
+FIGS = ["teaser", "supp", "auc", "forest", "pareto", "coverage", "matchability", "thumbs", "landscape", "gains",
+        "training", "difficulty", "gallery", "scoremap",
+        "learned"]
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
@@ -383,10 +669,11 @@ if __name__ == "__main__":
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     only = set(a.only.split(","))
     stats = json.loads((out / "stats.json").read_text())
-    need_pairs = only & {"teaser", "supp", "coverage", "thumbs"}
+    need_pairs = only & {"teaser", "supp", "coverage", "thumbs", "learned", "gallery", "scoremap"}
     pk = stats["picks"]
+    picks = gallery_picks()
     pairs = md_pairs({pk["orb"]["representative"]["pair"], pk["orb"]["failure"]["pair"],
-                      pk["brisk"]["representative"]["pair"]}) if need_pairs else None
+                      pk["brisk"]["representative"]["pair"]} | {p[0] for p in picks}) if need_pairs else None
     info = {}
     if "teaser" in only: info.update(fig_teaser(out, stats, pairs))
     if "supp" in only: info.update(fig_supp_qualitative(out, stats, pairs))
@@ -396,6 +683,13 @@ if __name__ == "__main__":
     if "coverage" in only: fig_coverage(out, stats, pairs)
     if "matchability" in only: fig_matchability(out)
     if "thumbs" in only: thumbnails(out, stats, pairs)
+    if "landscape" in only: fig_landscape(out)
+    if "gains" in only: print(json.dumps(fig_gains(out)))
+    if "learned" in only: fig_learned(out, stats, pairs)
+    if "training" in only: print(json.dumps(fig_training(out)))
+    if "difficulty" in only: print(json.dumps(fig_difficulty(out)))
+    if "gallery" in only: print(json.dumps(fig_gallery(out, picks, pairs)))
+    if "scoremap" in only: fig_scoremap(out, stats, pairs)
     if info:
         (out / "qualitative_info.json").write_text(json.dumps(info, indent=1))
         print(json.dumps(info))

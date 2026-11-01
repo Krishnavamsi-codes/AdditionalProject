@@ -1,8 +1,8 @@
-[brisk] pair 0/50  17s
-[brisk] pair 10/50  134s
-[brisk] pair 20/50  272s
-[brisk] pair 30/50  399s
-[brisk] pair 40/50  557s
+[brisk] pair 0/50  20s
+[brisk] pair 10/50  146s
+[brisk] pair 20/50  274s
+[brisk] pair 30/50  459s
+[brisk] pair 40/50  582s
 {
  "vanilla": {
   "kp_cov": 0.43984375,
@@ -11,6 +11,14 @@
   "neg_inl": 16.02,
   "neg_ok": 0.84,
   "neg_inl_median": 16.0
+ },
+ "pool_resp": {
+  "kp_cov": 0.4890625,
+  "inl_cov": 0.128515625,
+  "pos_inl": 130.44,
+  "neg_inl": 17.04,
+  "neg_ok": 0.9,
+  "neg_inl_median": 17.0
  },
  "pool_grid": {
   "kp_cov": 0.635390625,

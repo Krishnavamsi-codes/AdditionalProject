@@ -1,5 +1,5 @@
 """Paper analysis on a MegaDepth subset: spatial coverage of RANSAC inliers, and RANSAC-surviving matches on
-negative (cross-scene) pairs, for vanilla / pool_grid / RL selection.
+negative (cross-scene) pairs, for vanilla / pool top-K response / pool_grid / RL selection.
 
   python proj/scripts/paper_analysis.py --method orb [--pairs 100] [--out runs/report]
 """
@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cfeat import datasets, extract, match, metrics, policy  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-VARIANTS = ("vanilla", "pool_grid", "rl")
+VARIANTS = ("vanilla", "pool_resp", "pool_grid", "rl")
 
 
 def coverage(xy, shape, g=16):
@@ -48,7 +48,8 @@ if __name__ == "__main__":
             van = extract.detect_describe(img, a.method, a.k)
             pool = extract.select(extract.detect_describe(img, a.method, a.k, pool=True), 4 * a.k, "response")
             sc = pol(policy.candidate_features(pool, img, a.method))
-            feats[name] = {"vanilla": van, "pool_grid": extract.select(pool, a.k, "grid", img_shape=img.shape),
+            feats[name] = {"vanilla": van, "pool_resp": extract.select(pool, a.k, "response"),
+                           "pool_grid": extract.select(pool, a.k, "grid", img_shape=img.shape),
                            "rl": extract.select(pool, a.k, "score", scores=sc)}
         return feats[name]
 
