@@ -145,7 +145,7 @@ def main():
                     sdf = seeds[1]
                     vs = [v.replace("rl", f"rl_s{s}") for s in (1, 2)]
                     allA = np.array([A] + [auc(sdf, x, th, ds) for x in vs if (sdf.variant == x).any()])
-                    cell = " / ".join(f"{100 * mu:.1f}±{100 * sd:.1f}" for mu, sd in zip(allA.mean(0), allA.std(0)))
+                    cell = " / ".join(f"{100 * mu:.1f}±{100 * sd:.1f}" for mu, sd in zip(allA.mean(0), allA.std(0, ddof=1)))
                 row = (f"| {NICE[v]} | {cell} | {sub.prec.mean():.3f} | {sub.ncorr.mean():.0f} | "
                        f"{sub[f'inl@{th}'].mean():.0f} |")
                 if ds == "hpatches":

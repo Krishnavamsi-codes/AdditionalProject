@@ -3,6 +3,7 @@ data/
 cache/
 .venv/
 .venv_surf37/
+apenv/
 # python
 __pycache__/
 *.pyc
