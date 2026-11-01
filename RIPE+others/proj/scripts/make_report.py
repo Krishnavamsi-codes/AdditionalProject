@@ -141,10 +141,14 @@ def main():
                     continue
                 A = auc(df, v, th, ds)
                 cell = f3(A)
-                if v in ("rl", "rl_grid") and seeds is not None:   # mean ± std over seeds 0,1,2
-                    sdf = seeds[1]
-                    vs = [v.replace("rl", f"rl_s{s}") for s in (1, 2)]
-                    allA = np.array([A] + [auc(sdf, x, th, ds) for x in vs if (sdf.variant == x).any()])
+                if v in ("rl", "rl_grid") and seeds is not None:   # mean ± std over seeds 0-2, plus 3, 4 where run
+                    allA = [A]
+                    for tag, ss in (("_seeds", (1, 2)), ("_seeds34", (3, 4))):
+                        if (ds, m, tag) in R:
+                            sdf = R[(ds, m, tag)][1]
+                            allA += [auc(sdf, v.replace("rl", f"rl_s{s}"), th, ds) for s in ss
+                                     if (sdf.variant == v.replace("rl", f"rl_s{s}")).any()]
+                    allA = np.array(allA)
                     cell = " / ".join(f"{100 * mu:.1f}±{100 * sd:.1f}" for mu, sd in zip(allA.mean(0), allA.std(0, ddof=1)))
                 row = (f"| {NICE[v]} | {cell} | {sub.prec.mean():.3f} | {sub.ncorr.mean():.0f} | "
                        f"{sub[f'inl@{th}'].mean():.0f} |")

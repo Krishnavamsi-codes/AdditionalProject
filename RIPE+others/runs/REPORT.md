@@ -46,8 +46,8 @@ the same pool) and `pool_grid`, a strong ANMS-like heuristic in the style of ORB
 | pool, top-K response | 40.6 / 54.1 / 66.2 | 15.4 / 25.2 / 36.5 | 30.8 / 43.9 / 56.3 |
 | pool, grid (heuristic) | **43.3 / 56.9 / 68.7** | 25.3 / 37.0 / 49.1 | **33.8 / 48.7 / 62.1** |
 | supervised, top-K (seed 0) | 42.5 / 57.1 / 69.9 | 20.1 / 32.3 / 45.4 | 33.4 / 48.3 / 61.7 |
-| **RIPE-Select (RL), top-K, 3 seeds** | 41.0±2.4 / 55.3±3.3 / 67.3±3.7 | **24.9±0.4 / 38.4±0.2 / 51.8±0.4** | 32.6±1.3 / 46.6±1.3 / 59.4±1.1 |
-| RIPE-Select (RL), grid, 3 seeds | 41.3±0.8 / 55.3±1.0 / 67.4±0.9 | 22.0±0.7 / 33.8±0.6 / 45.7±0.3 | 30.3±1.1 / 43.3±1.0 / 56.4±0.8 |
+| **RIPE-Select (RL), top-K, 3 seeds (SIFT) / 5 seeds (ORB, BRISK)** | 41.0±2.4 / 55.3±3.3 / 67.3±3.7 | **24.6±1.2 / 38.1±1.5 / 51.4±1.5** | 32.4±1.0 / 46.3±1.1 / 59.3±0.8 |
+| RIPE-Select (RL), grid, 3 / 5 seeds | 41.3±0.8 / 55.3±1.0 / 67.4±0.9 | 22.1±0.7 / 34.0±0.7 / 45.8±0.4 | 30.3±1.0 / 43.6±0.8 / 56.5±0.7 |
 
 Per seed (RL, top-K, AUC @5/10/20°):
 
@@ -90,8 +90,8 @@ SIFT seed, so the SIFT row overstates the 3-seed gain:
 |---|---|---|---|
 | vanilla | 31.8 / 63.5 / 74.1 | 21.0 / 45.0 / 56.9 | 27.5 / 58.0 / 69.4 |
 | pool, grid | **33.9 / 64.6 / 75.3** | **24.5 / 51.0 / 62.3** | **31.9 / 61.9 / 72.6** |
-| RL, top-K, 3 seeds | 30.7±0.8 / 61.6±0.3 / 72.8±0.4 | 20.4±0.2 / 45.2±0.4 / 56.9±0.6 | 28.1±0.3 / 58.0±0.2 / 69.6±0.5 |
-| RL, grid, 3 seeds | 31.9±0.1 / 62.8±0.2 / 73.7±0.2 | 23.3±0.4 / 48.5±0.1 / 60.0±0.2 | 30.7±0.3 / 60.1±0.3 / 71.3±0.3 |
+| RL, top-K, 3 / 5 seeds | 30.7±0.8 / 61.6±0.3 / 72.8±0.4 | 20.4±0.2 / 45.3±0.4 / 57.1±0.5 | 28.1±0.3 / 58.0±0.1 / 69.7±0.4 |
+| RL, grid, 3 / 5 seeds | 31.9±0.1 / 62.8±0.2 / 73.7±0.2 | 23.5±0.5 / 48.9±0.6 / 60.3±0.6 | 30.7±0.3 / 60.1±0.2 / 71.2±0.3 |
 
 Split by HPatches sequence type (seed 0, AUC @1/3/5 px):
 
@@ -140,15 +140,17 @@ The validation ranking of the SIFT seeds (0 > 1 > 2) is the same as their MegaDe
 ## 6. Honest conclusions
 
 1. **The RIPE reward transfers to classical features on real 3D scenes.** On MegaDepth, RL selection beats vanilla
-   OpenCV for all three methods with the same descriptor, matcher and RANSAC: +8.8 (ORB), +4.7 (BRISK) and +3.3
-   (SIFT) mean AUC, averaged over 3 seeds. It also raises match quality: MMA and inlier ratio go up for SIFT and
+   OpenCV for all three methods with the same descriptor, matcher and RANSAC: +8.5 (ORB), +4.5 (BRISK) and +3.3
+   (SIFT) mean AUC, averaged over 5 seeds (ORB, BRISK) and 3 seeds (SIFT). Across seeds the ORB and BRISK
+   gains are significant (one-sample t-test, n=5: ORB t=13.9, BRISK t=10.9, both p<0.001), and every seed is
+   significant on its own over the 500 pairs (paired t-test, p≤0.016). It also raises match quality: MMA and inlier ratio go up for SIFT and
    BRISK and stay level for ORB, while the grid heuristic lowers both. The diagnostics explain why there is room:
    detector response barely predicts matchability on MegaDepth (ROC-AUC 0.56–0.60), and top-K by response keeps
    only 39–44 % of the pool's correct matches.
 2. **Most of the pose gain is also available without learning.** The grid heuristic on the same pool reaches
-   about the same pose accuracy: RL is ahead only for ORB (+1.2, not significant), and behind for SIFT (−1.8) and
+   about the same pose accuracy: RL is ahead only for ORB (+0.9 over 5 seeds, not significant; seed 4 is below the grid), and behind for SIFT (−1.8) and
    BRISK (−2.0). Better-matching keypoints do not turn into better poses when they are spatially clustered.
-3. **ORB is the clearest case for RL.** ORB gains most, its 3 seeds agree within 0.8 points, and RL beats the
+3. **ORB is the clearest case for RL.** ORB gains most, all 5 seeds gain +6.2 to +9.8, and RL beats the
    supervised model on the same pseudo-labels (+5.7, significant). A likely cause is that the negative-pair penalty
    targets ORB's ambiguous Hamming matches, which positive-only labels never show. For SIFT and BRISK, RL and
    supervised training are not significantly different.

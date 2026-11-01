@@ -48,8 +48,8 @@ Diagnostics: ROC-AUC(detector response → keypoint has a correct match) = 0.614
 | pool, top-2K (2x budget!) | 24.0 / 49.7 / 61.4 | 0.509 | 440 | 401 | 36.9 / 62.5 / 72.3 | 12.2 / 37.9 / 51.5 |
 | supervised, top-K | 18.1 / 42.5 / 54.4 | 0.459 | 187 | 169 | 28.6 / 53.6 / 63.5 | 8.5 / 32.3 / 46.1 |
 | supervised, grid | 23.6 / 49.4 / 60.8 | 0.404 | 155 | 140 | 35.5 / 61.0 / 70.8 | 12.6 / 38.7 / 51.6 |
-| **RIPE-Select (RL), top-K** | 20.4±0.2 / 45.2±0.4 / 56.9±0.6 | 0.478 | 194 | 176 | 31.5 / 55.2 / 64.7 | 10.1 / 35.4 / 48.6 |
-| **RIPE-Select (RL), grid** | 23.3±0.4 / 48.5±0.1 / 60.0±0.2 | 0.419 | 157 | 142 | 35.6 / 60.0 / 69.7 | 12.8 / 38.2 / 51.4 |
+| **RIPE-Select (RL), top-K** | 20.4±0.2 / 45.3±0.4 / 57.1±0.5 | 0.478 | 194 | 176 | 31.5 / 55.2 / 64.7 | 10.1 / 35.4 / 48.6 |
+| **RIPE-Select (RL), grid** | 23.5±0.5 / 48.9±0.6 / 60.3±0.6 | 0.419 | 157 | 142 | 35.6 / 60.0 / 69.7 | 12.8 / 38.2 / 51.4 |
 
 Diagnostics: ROC-AUC(detector response → keypoint has a correct match) = 0.564; share of the pool's correct matches kept by top-K response = 31%; correct-match rate per response quartile = 25.2%, 22.7%, 20.5%, 16.8%.
 
@@ -112,8 +112,8 @@ Diagnostics: ROC-AUC(detector response → keypoint has a correct match) = 0.631
 | pool, top-2K (2x budget!) | 31.4 / 62.1 / 72.8 | 0.534 | 459 | 474 | 39.3 / 69.5 / 78.7 | 24.3 / 55.4 / 67.5 |
 | supervised, top-K | 27.1 / 57.2 / 69.0 | 0.491 | 197 | 205 | 34.4 / 64.4 / 74.5 | 20.5 / 50.8 / 64.0 |
 | supervised, grid | 31.4 / 61.5 / 72.0 | 0.440 | 168 | 175 | 40.3 / 69.6 / 78.6 | 23.3 / 54.0 / 66.0 |
-| **RIPE-Select (RL), top-K** | 28.1±0.3 / 58.0±0.2 / 69.6±0.5 | 0.537 | 214 | 223 | 36.1 / 65.1 / 75.2 | 21.3 / 51.4 / 63.8 |
-| **RIPE-Select (RL), grid** | 30.7±0.3 / 60.1±0.3 / 71.3±0.3 | 0.470 | 173 | 181 | 39.6 / 68.5 / 78.5 | 22.6 / 52.4 / 64.8 |
+| **RIPE-Select (RL), top-K** | 28.1±0.3 / 58.0±0.1 / 69.7±0.4 | 0.537 | 214 | 223 | 36.1 / 65.1 / 75.2 | 21.3 / 51.4 / 63.8 |
+| **RIPE-Select (RL), grid** | 30.7±0.3 / 60.1±0.2 / 71.2±0.3 | 0.470 | 173 | 181 | 39.6 / 68.5 / 78.5 | 22.6 / 52.4 / 64.8 |
 
 Diagnostics: ROC-AUC(detector response → keypoint has a correct match) = 0.604; share of the pool's correct matches kept by top-K response = 38%; correct-match rate per response quartile = 28.1%, 23.7%, 19.3%, 14.3%.
 
@@ -166,8 +166,8 @@ Diagnostics: ROC-AUC(detector response → keypoint has a correct match) = 0.583
 | pool, grid (ANMS-like) | 25.3 / 37.0 / 49.1 | 0.177 | 100 | 98 |
 | supervised, top-K | 20.1 / 32.3 / 45.4 | 0.239 | 150 | 145 |
 | supervised, grid | 21.2 / 32.8 / 45.3 | 0.159 | 90 | 89 |
-| **RIPE-Select (RL), top-K** | 24.9±0.4 / 38.4±0.2 / 51.8±0.4 | 0.244 | 134 | 131 |
-| **RIPE-Select (RL), grid** | 22.0±0.7 / 33.8±0.6 / 45.7±0.3 | 0.163 | 83 | 82 |
+| **RIPE-Select (RL), top-K** | 24.6±1.2 / 38.1±1.5 / 51.4±1.5 | 0.244 | 134 | 131 |
+| **RIPE-Select (RL), grid** | 22.1±0.7 / 34.0±0.7 / 45.8±0.4 | 0.163 | 83 | 82 |
 
 Diagnostics: ROC-AUC(detector response → keypoint has a correct match) = 0.598; share of the pool's correct matches kept by top-K response = 40%; correct-match rate per response quartile = 8.4%, 5.6%, 4.9%, 4.2%.
 
@@ -222,8 +222,8 @@ Diagnostics: ROC-AUC(detector response → keypoint has a correct match) = 0.611
 | pool, grid (ANMS-like) | 33.8 / 48.7 / 62.1 | 0.201 | 112 | 112 |
 | supervised, top-K | 33.4 / 48.3 / 61.7 | 0.237 | 136 | 135 |
 | supervised, grid | 33.6 / 47.1 / 59.7 | 0.193 | 105 | 104 |
-| **RIPE-Select (RL), top-K** | 32.6±1.3 / 46.6±1.3 / 59.4±1.1 | 0.243 | 127 | 127 |
-| **RIPE-Select (RL), grid** | 30.3±1.1 / 43.3±1.0 / 56.4±0.8 | 0.195 | 95 | 95 |
+| **RIPE-Select (RL), top-K** | 32.4±1.0 / 46.3±1.1 / 59.3±0.8 | 0.243 | 127 | 127 |
+| **RIPE-Select (RL), grid** | 30.3±1.0 / 43.6±0.8 / 56.5±0.7 | 0.195 | 95 | 95 |
 
 Diagnostics: ROC-AUC(detector response → keypoint has a correct match) = 0.564; share of the pool's correct matches kept by top-K response = 44%; correct-match rate per response quartile = 8.0%, 7.0%, 6.3%, 5.6%.
 

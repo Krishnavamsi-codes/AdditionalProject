@@ -190,9 +190,25 @@ def main():
     import multiprocessing as mp
     pool = mp.Pool(args.workers)
 
+    def pmap(fn, jobs, tries=20):
+        """pool.map that waits out a transient out-of-memory (other apps) instead of losing the run.
+        The jobs are deterministic, so a retry returns exactly what the first attempt would have."""
+        for i in range(tries):
+            try:
+                return pool.map(fn, jobs)
+            except MemoryError as e:          # numpy's _ArrayMemoryError is a MemoryError
+                if i == tries - 1:
+                    raise
+                print(f"out of memory in a worker ({e}); retry {i + 1} in 60 s", flush=True)
+                time.sleep(60)
+
+    fixed = {}      # 'response' and 'grid_resp' do not depend on the policy: validate them once
+
     def validate():
         res = {}
         for rule in ("response", "score", "grid_resp", "grid_score"):
+            if rule in fixed:
+                res[rule] = fixed[rule]; continue
             jobs = []
             for n0, n1 in vp:
                 ff = []
@@ -211,9 +227,11 @@ def main():
                 R, t = scenes[args.val].rel_pose(n0, n1)
                 jobs.append((ff[0][0]["xy"], ff[0][0]["desc"], ff[1][0]["xy"], ff[1][0]["desc"], ff[0][1], ff[1][1],
                              ff[0][2], ff[1][2], R, t, binary, 1.5))
-            r = pool.map(val_job, jobs)
+            r = pmap(val_job, jobs)
             err = np.array([e for e, _ in r])
             res[rule] = dict(auc=metrics.error_auc(err, [5, 10, 20]), inl=float(np.mean([i for _, i in r])))
+            if "score" not in rule:
+                fixed[rule] = res[rule]
         return res
 
     # ---- supervised ablation: pseudo-labels from the full pool, computed once (same reward machinery)
@@ -246,7 +264,7 @@ def main():
                 c0, c1 = cache[a], cache[b]
                 jobs.append((c0["xy"][kept[0]], full_desc(c0)[kept[0]], c1["xy"][kept[1]], full_desc(c1)[kept[1]], lab,
                              binary, args.th, args.iters))
-            rewards = pool.map(reward_job, jobs)
+            rewards = pmap(reward_job, jobs)
             loss, rsum, n_inl = 0.0, 0.0, 0
             for j, ((a, b, lab), (r0, r1)) in enumerate(zip(batch, rewards)):
                 for (p, m), r in ((side[2 * j], r0), (side[2 * j + 1], r1)):
