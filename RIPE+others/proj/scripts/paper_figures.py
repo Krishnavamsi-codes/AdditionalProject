@@ -46,6 +46,15 @@ def errs(df, v, th=TH):
     return df[df.variant == v].sort_values("pair")[f"err@{th}"].values
 
 
+def seed_errs(method, df):
+    """Pose errors of RL seeds 0-4 on MegaDepth: seed 0 is in df, 1-2 in _seeds, 3-4 in _seeds34."""
+    out = [errs(df, "rl")]
+    for tag, ss in (("_seeds", (1, 2)), ("_seeds34", (3, 4))):
+        d = pd.read_csv(EVAL / f"megadepth_{method}_k2048{tag}_pairs.csv")
+        out += [errs(d, f"rl_s{s}") for s in ss]
+    return out
+
+
 def auc(e, ths):
     return 100 * np.array(metrics.error_auc(e, list(ths)))
 
@@ -123,14 +132,13 @@ def draw_pair(ax, method, s, variant, title_col):
 
 
 def summary_bars(ax, method):
-    """Benchmark-level mean pose AUC on MegaDepth (RL: 3-seed mean +- std) next to the example pair."""
+    """Benchmark-level mean pose AUC on MegaDepth (RL: 5-seed mean +- std) next to the example pair."""
     df = pd.read_csv(EVAL / f"megadepth_{method}_k2048_pairs.csv")
-    ds = pd.read_csv(EVAL / f"megadepth_{method}_k2048_seeds_pairs.csv")
     vs = ("vanilla", "pool_grid", "rl")
     vals, err = [], []
     for v in vs:
         if v == "rl":
-            a = [auc(errs(df, "rl"), [5, 10, 20]).mean()] + [auc(errs(ds, f"rl_s{s}"), [5, 10, 20]).mean() for s in (1, 2)]
+            a = [auc(e, [5, 10, 20]).mean() for e in seed_errs(method, df)]
             vals.append(np.mean(a)); err.append(np.std(a, ddof=1))
         else:
             vals.append(auc(errs(df, v), [5, 10, 20]).mean()); err.append(0)
@@ -187,10 +195,9 @@ def fig_auc(out):
     fig, axes = plt.subplots(1, 2, figsize=(COL, 1.55))
     for ax, m in zip(axes, ("orb", "brisk")):
         df = pd.read_csv(EVAL / f"megadepth_{m}_k2048_pairs.csv")
-        ds = pd.read_csv(EVAL / f"megadepth_{m}_k2048_seeds_pairs.csv")
         for v in ("pool_resp", "vanilla", "sup", "pool_grid", "rl"):
             if v == "rl":
-                cs = np.stack([auc(errs(df, "rl"), ths)] + [auc(errs(ds, f"rl_s{s}"), ths) for s in (1, 2)])
+                cs = np.stack([auc(e, ths) for e in seed_errs(m, df)])
                 ax.fill_between(ths, cs.min(0), cs.max(0), color=C[v], alpha=.22, lw=0)
                 ax.plot(ths, cs.mean(0), color=C[v], ls=LS[v], label=LABEL[v], lw=1.6, zorder=5)
             else:
@@ -245,13 +252,12 @@ def fig_pareto(out):
     fig, axes = plt.subplots(1, 2, figsize=(COL, 1.5))
     for ax, m in zip(axes, ("orb", "brisk")):
         df = pd.read_csv(EVAL / f"megadepth_{m}_k2048_pairs.csv")
-        ds = pd.read_csv(EVAL / f"megadepth_{m}_k2048_seeds_pairs.csv")
         t = T[m]
         rt = {"vanilla": t["vanilla"], "pool_resp": t["pool"], "pool_grid": t["pool"], "sup": t["rl_total"],
               "rl": t["rl_total"]}
         for v in ("vanilla", "pool_resp", "pool_grid", "sup", "rl"):
             if v == "rl":
-                a = [auc(errs(df, "rl"), [5, 10, 20]).mean()] + [auc(errs(ds, f"rl_s{s}"), [5, 10, 20]).mean() for s in (1, 2)]
+                a = [auc(e, [5, 10, 20]).mean() for e in seed_errs(m, df)]
                 ax.errorbar(rt[v], np.mean(a), yerr=np.std(a, ddof=1), fmt="*", ms=7, color=C[v], capsize=1.5,
                             elinewidth=0.8, zorder=5)
             else:

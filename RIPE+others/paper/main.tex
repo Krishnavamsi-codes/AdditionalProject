@@ -68,8 +68,8 @@ keypoints will match. We ask whether RIPE's weak reward---a keypoint scores when
 a same-scene pair and is penalised on a different-scene pair---can teach a policy \emph{which} classical
 candidates to keep, leaving detector, descriptor and matcher untouched. \ours scores candidates with a small
 MLP and is trained with REINFORCE under a budget-exact Bernoulli selection. Trained on two scenes on a laptop
-CPU, it improves MegaDepth-1500 pose AUC over OpenCV by \textbf{+8.8} for ORB and \textbf{+4.7} for BRISK
-(three seeds) and raises match precision; for ORB, RL beats supervised training on the same pseudo-labels by
+CPU, it improves MegaDepth-1500 pose AUC over OpenCV by \textbf{+8.5} for ORB and \textbf{+4.5} for BRISK
+(five seeds, every seed significant) and raises match precision; for ORB, RL beats supervised training on the same pseudo-labels by
 \textbf{+5.7}. The caveat is spatial: a grid-bucketing heuristic on the same candidates reaches comparable pose
 accuracy by spreading keypoints, and on planar HPatches no learned variant beats it. Learned selection improves
 \emph{which} keypoints are kept, not \emph{where}.
@@ -100,8 +100,8 @@ robust estimator are unchanged, which makes \ours a drop-in module for existing 
   \item \ours, a keypoint selection policy for classical detectors trained with RIPE's pair-label reward, and a
         budget-exact Bernoulli selection that replaces RIPE's keypoint-count regulariser (\cref{sec:method}).
   \item A controlled evaluation in which every method shares images, candidate pool, budget, descriptor,
-        matcher and RANSAC, with three seeds and paired bootstrap tests (\cref{sec:setup}).
-  \item Gains of +8.8 (ORB) and +4.7 (BRISK) pose AUC over OpenCV on MegaDepth-1500, with higher match
+        matcher and RANSAC, with five seeds and paired bootstrap tests (\cref{sec:setup}).
+  \item Gains of +8.5 (ORB) and +4.5 (BRISK) pose AUC over OpenCV on MegaDepth-1500, with higher match
         precision and inlier ratio (\cref{sec:results}).
   \item An analysis of what the policy learns and what it misses: it raises per-keypoint quality, beats
         supervised training for ORB, but does not improve spatial coverage, which a grid heuristic supplies
@@ -279,8 +279,9 @@ response. \emph{Pool, grid}: the same pool in a $16{\times}16$ grid, taken round
 ORB-SLAM. \emph{Supervised}: our network trained with binary cross-entropy on the RANSAC inlier labels of the
 full pool, which isolates the effect of RL.
 
-\q{Statistics.} \ours rows are means over three seeds ($\pm$ sample std). Significance is a paired bootstrap
-over test pairs (2000 resamples, 95\,\% CI) of the difference in mean AUC.
+\q{Statistics.} \ours rows are means over five seeds ($\pm$ sample std). Significance is a paired bootstrap
+over test pairs (2000 resamples, 95\,\% CI) of the difference in mean AUC; across seeds we use a
+one-sample $t$-test on the per-seed gains.
 
 % ============================================================================ results
 \begin{table*}[t]
@@ -296,7 +297,7 @@ over test pairs (2000 resamples, 95\,\% CI) of the difference in mean AUC.
 \end{tabular}
 \caption{\textbf{Main results.} AUC (\%) of the pose error on MegaDepth-1500 (500 pairs) and of the homography
 corner error on HPatches. Every row uses the same images, budget, descriptor, matcher and RANSAC; the pool rows,
-supervised and \ours select from the same candidate pool. \ours: mean over three seeds, $\pm$ std of the mean
+supervised and \ours select from the same candidate pool. \ours: mean over five seeds, $\pm$ std of the mean
 AUC. \textbf{Bold}: best, \underline{underlined}: second best.}
 \label{tab:main}
 \end{table*}
@@ -305,17 +306,19 @@ AUC. \textbf{Bold}: best, \underline{underlined}: second best.}
 \label{sec:results}
 
 \q{MegaDepth.} \Cref{tab:main} (top) shows that learned selection improves on OpenCV for both detectors, by
-\textbf{+8.8} mean AUC for ORB and \textbf{+4.7} for BRISK. The three ORB seeds agree to within 0.2 AUC, the
-BRISK seeds to within 2.4 (\cref{tab:seeds}). The improvement holds at every threshold
+\textbf{+8.5} mean AUC for ORB and \textbf{+4.5} for BRISK. Every one of the five seeds improves on
+vanilla (ORB +6.2 to +9.8, BRISK +3.4 to +5.8; \cref{tab:seeds}), each significantly over the 500 pairs
+(paired $t$-test, $p\le0.016$), and the gain is significant across seeds (one-sample $t$-test, $n{=}5$,
+ORB $t{=}13.9$, BRISK $t{=}10.9$, both $p<0.001$). The improvement holds at every threshold
 (\cref{fig:auc}) and is significant against vanilla and against response ranking of the same pool
 (\cref{fig:forest}). Per pair, \ours improves 47\,\% of the ORB pairs and worsens 27\,\% (BRISK: 47\,\% and
 35\,\%); the rest are unchanged. The spatial grid on the same pool is the strongest baseline: \ours is ahead by
-1.2 for ORB and behind by 2.0 for BRISK, neither difference significant.
+0.9 for ORB and behind by 2.2 for BRISK, neither difference significant.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{auc_curves.pdf}
-  \caption{\textbf{Pose AUC vs.\ error threshold} on MegaDepth. Band: range over three \ours seeds.}
+  \caption{\textbf{Pose AUC vs.\ error threshold} on MegaDepth. Band: range over five \ours seeds.}
   \label{fig:auc}
 \end{figure}
 
@@ -353,7 +356,7 @@ and the weakest quartile, and top-$K$ by response keeps only 40--44\,\% of the p
 \end{figure}
 
 \q{Is it the larger pool?} No. Ranking the same pool by response \emph{lowers} ORB accuracy by 3.9 AUC,
-while the learned ranking raises it by 8.8; \ours beats pool top-$K$ by +12.6 (ORB) and +3.7 (BRISK), both
+while the learned ranking raises it by 8.5; \ours (seed 0) beats pool top-$K$ by +12.6 (ORB) and +3.7 (BRISK), both
 significant (\cref{fig:forest}).
 
 \q{Does RL matter?} For ORB, \ours beats the supervised model trained on the same RANSAC pseudo-labels by
@@ -413,7 +416,7 @@ extraction (70 and 295\,ms), which makes it the better accuracy--cost trade-off 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{pareto.pdf}
-  \caption{\textbf{Accuracy vs.\ cost} on MegaDepth. \ours: three-seed mean $\pm$ std; supervised shares its
+  \caption{\textbf{Accuracy vs.\ cost} on MegaDepth. \ours: five-seed mean $\pm$ std; supervised shares its
   runtime.}
   \label{fig:pareto}
 \end{figure}
@@ -422,7 +425,7 @@ extraction (70 and 295\,ms), which makes it the better accuracy--cost trade-off 
 \section{Limitations}
 \label{sec:limitations}
 Training uses two scenes (700 images), no hyper-parameter search and one validation scene; RIPE uses the DISK
-MegaDepth subset and about three GPU-days. MegaDepth results use 500 of the 1500 pairs; RL rows use three seeds,
+MegaDepth subset and about three GPU-days. MegaDepth results use 500 of the 1500 pairs; RL rows use five seeds,
 and the ablations and bootstrap tests use seed 0. Cue computation makes selection slow. For SIFT and SURF learned
 selection does not help (\cref{app:siftsurf}).
 
