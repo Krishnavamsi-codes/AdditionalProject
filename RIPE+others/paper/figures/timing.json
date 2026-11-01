@@ -1,0 +1,13 @@
+{
+ "_source": "proj/scripts/timing_benchmark.py, run 2026-11-01 with no other load; median ms per image over 20 images",
+ "megadepth": {
+  "sift":  {"vanilla": 307, "pool": 666, "cues": 674, "mlp": 18.5, "select": 1.4, "rl_total": 1360},
+  "orb":   {"vanilla": 20,  "pool": 70,  "cues": 740, "mlp": 26.5, "select": 1.0, "rl_total": 838},
+  "brisk": {"vanilla": 81,  "pool": 295, "cues": 740, "mlp": 41.0, "select": 1.0, "rl_total": 1077}
+ },
+ "hpatches": {
+  "sift":  {"vanilla": 94, "pool": 191, "cues": 149, "mlp": 6.4,  "select": 0.4, "rl_total": 347},
+  "orb":   {"vanilla": 8,  "pool": 26,  "cues": 235, "mlp": 13.4, "select": 0.5, "rl_total": 275},
+  "brisk": {"vanilla": 40, "pool": 102, "cues": 189, "mlp": 15.2, "select": 0.4, "rl_total": 306}
+ }
+}

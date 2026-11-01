@@ -1,0 +1,560 @@
+% RIPE-Select (ORB/BRISK) — CVPR 2025 author kit (cvpr.sty v3.1), camera-ready layout with page numbers.
+% Build: pdflatex --include-directory=texmf main ; bibtex main ; pdflatex x2   (texmf/ holds vendored packages)
+\documentclass[10pt,twocolumn,letterpaper]{article}
+\usepackage[pagenumbers]{cvpr}
+
+\usepackage{microtype}
+\usepackage{multirow}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc}
+\usepackage[detect-weight=true,detect-family=true,mode=text,separate-uncertainty=true,
+            table-align-uncertainty=true]{siunitx}
+
+\definecolor{cvprblue}{rgb}{0.21,0.49,0.74}
+\usepackage[pagebackref,breaklinks,colorlinks,allcolors=cvprblue]{hyperref}
+\usepackage[capitalize,nameinlink]{cleveref}
+
+% ---- palette (same hex values as proj/scripts/paper_figures.py)
+\definecolor{ours}{HTML}{6F4E9C}
+\definecolor{vanilla}{HTML}{3A6FB0}
+\definecolor{grid}{HTML}{2E9E77}
+\definecolor{baseline}{HTML}{5E5E5E}
+\definecolor{good}{HTML}{1FA35B}
+\definecolor{bad}{HTML}{E05A1B}
+
+% ---- macros
+\newcommand{\ours}{\textup{\textsc{Ripe-Select}}\xspace}
+\newcommand{\B}[1]{\bfseries #1}
+\newcommand{\U}[1]{\underline{#1}}
+\newcommand{\q}[1]{\noindent\textbf{#1}\hspace{0.4em}}
+\newcounter{algo}
+\makeatletter\newcommand{\tabinput}[1]{\@@input #1 }\makeatother
+\crefname{algo}{Algorithm}{Algorithms}
+\graphicspath{{figures/}}
+
+\def\paperID{*****}
+\def\confName{CVPR}
+\def\confYear{2025}
+
+\title{Learning Which Keypoints to Keep:\\
+Pair-Label RL Makes ORB and BRISK Match Better, Not Spread Wider}
+
+\author{Krishnavamsi\\
+{\tt\small vamsi9398672280@gmail.com}}
+
+\begin{document}
+
+% ============================================================================ teaser
+\twocolumn[{%
+\renewcommand\twocolumn[1][]{#1}%
+\maketitle
+\vspace{-1.6em}
+\begin{center}
+  \includegraphics[width=\textwidth]{teaser.pdf}
+  \captionof{figure}{\textbf{Same detector, same descriptor, different keypoints.} ORB on a MegaDepth pair, keeping
+  $K{=}2048$ keypoints (yellow) with OpenCV's default ranking, a spatial grid, or our learned policy. Lines are
+  RANSAC inliers, \textcolor{good}{green} if geometrically correct and \textcolor{bad}{orange} otherwise.
+  The pair is not hand-picked: its per-pair gain of \ours over vanilla (8.6 AUC points) is the closest to the
+  mean gain over all 500 test pairs (8.7). Right: mean pose AUC over the benchmark.}
+  \label{fig:teaser}
+\end{center}
+\vspace{0.6em}
+}]
+
+% ============================================================================ abstract
+\begin{abstract}
+Classical detectors keep the $K$ keypoints with the highest response, but response barely predicts which
+keypoints will match. We ask whether RIPE's weak reward---a keypoint scores when its match survives RANSAC on
+a same-scene pair and is penalised on a different-scene pair---can teach a policy \emph{which} classical
+candidates to keep, leaving detector, descriptor and matcher untouched. \ours scores candidates with a small
+MLP and is trained with REINFORCE under a budget-exact Bernoulli selection. Trained on two scenes on a laptop
+CPU, it improves MegaDepth-1500 pose AUC over OpenCV by \textbf{+8.8} for ORB and \textbf{+4.7} for BRISK
+(three seeds) and raises match precision; for ORB, RL beats supervised training on the same pseudo-labels by
+\textbf{+5.7}. The caveat is spatial: a grid-bucketing heuristic on the same candidates reaches comparable pose
+accuracy by spreading keypoints, and on planar HPatches no learned variant beats it. Learned selection improves
+\emph{which} keypoints are kept, not \emph{where}.
+\end{abstract}
+
+% ============================================================================ intro
+\section{Introduction}
+\label{sec:intro}
+
+Learned local features~\cite{detone2018superpoint,tyszkiewicz2020disk,zhao2023aliked,kunzel2025ripe} lead
+image-matching benchmarks, yet classical detectors remain what many deployed systems run.
+ORB~\cite{rublee2011orb} is the front end of ORB-SLAM~\cite{murartal2015orbslam}, and binary features are
+preferred wherever compute, memory or licensing are tight. These pipelines detect many candidates and keep
+the $K$ with the highest detector response.
+
+\q{The gap.} Response measures local contrast, not \emph{matchability}. On MegaDepth, response separates
+candidates that become correct matches from those that do not with a ROC-AUC of only 0.56--0.60, and a
+top-$K$ cut by response discards more than half of the correct matches present in the candidate pool
+(\cref{fig:matchability}). The decision of which keypoints to keep is therefore a cheap, unexploited lever.
+
+\q{The idea.} RIPE~\cite{kunzel2025ripe} trains a keypoint detector by reinforcement learning from nothing more
+than whether two images show the same scene. A classical detector has no heatmap to sample from, so we learn
+a \emph{selection policy} over its candidates instead (\cref{fig:method}). Detector, descriptor, matcher and
+robust estimator are unchanged, which makes \ours a drop-in module for existing pipelines.
+
+\q{Contributions.}
+\begin{itemize}[nosep,leftmargin=*]
+  \item \ours, a keypoint selection policy for classical detectors trained with RIPE's pair-label reward, and a
+        budget-exact Bernoulli selection that replaces RIPE's keypoint-count regulariser (\cref{sec:method}).
+  \item A controlled evaluation in which every method shares images, candidate pool, budget, descriptor,
+        matcher and RANSAC, with three seeds and paired bootstrap tests (\cref{sec:setup}).
+  \item Gains of +8.8 (ORB) and +4.7 (BRISK) pose AUC over OpenCV on MegaDepth-1500, with higher match
+        precision and inlier ratio (\cref{sec:results}).
+  \item An analysis of what the policy learns and what it misses: it raises per-keypoint quality, beats
+        supervised training for ORB, but does not improve spatial coverage, which a grid heuristic supplies
+        for free (\cref{sec:analysis}).
+\end{itemize}
+\noindent\textbf{Takeaway:} \emph{learn quality, but enforce coverage}---the two are complementary, and pose
+accuracy needs both.
+
+% ============================================================================ method figure
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+    font=\footnotesize, >={Stealth[length=4pt]},
+    thumb/.style={inner sep=0pt, draw=black!25, line width=0.4pt},
+    thcap/.style={font=\scriptsize, align=center, text width=2.1cm},
+    proc/.style={draw, rounded corners=2pt, align=center, minimum height=1.05cm, inner sep=3pt, line width=0.6pt},
+    frozen/.style={proc, fill=black!5, draw=black!45},
+    learned/.style={proc, fill=ours!12, draw=ours, line width=0.9pt},
+    arr/.style={->, line width=0.7pt, black!70},
+    node distance=0.5cm]
+  % ---- row 1: inference path
+  \node[thumb] (img) {\includegraphics[width=1.55cm]{thumb_image.png}};
+  \node[thcap, below=2pt of img] {image};
+  \node[frozen, right=of img] (det) {OpenCV\\detector\\{\scriptsize lowered thr.}};
+  \node[thumb, right=of det] (pool) {\includegraphics[width=1.55cm]{thumb_pool.png}};
+  \node[thcap, below=2pt of pool] {candidate pool\\$4K$ + descriptors};
+  \node[frozen, right=of pool] (cue) {20 cues + \\descriptor bits\\{\scriptsize no $(x,y)$}};
+  \node[learned, right=of cue] (mlp) {MLP\\$s_i$};
+  \node[learned, right=of mlp, text width=2.25cm] (sel)
+        {keep $i$ w.p.\\$p_i=\sigma(s_i{+}b)$\\{\scriptsize $b$ s.t. $\sum_i p_i = K$}};
+  \node[thumb, right=of sel] (kept) {\includegraphics[width=1.55cm]{thumb_kept.png}};
+  \node[thcap, below=2pt of kept] (keptcap) {$K$ kept\\(test: top-$K$ by $s_i$)};
+  \foreach \a/\b in {img/det, det/pool, pool/cue, cue/mlp, mlp/sel, sel/kept} \draw[arr] (\a) -- (\b);
+  % ---- row 2: training reward (matching block directly under the MLP)
+  \node[proc, fill=white, draw=black!40, text width=2.3cm, font=\scriptsize] (match)
+        at ($(mlp.south)+(0,-2.35)$) {MNN matching +\\F-RANSAC (1.5\,px)\\on kept keypoints};
+  \node[thumb, right=0.6cm of match] (pos) {\includegraphics[width=2.1cm]{thumb_pos.png}};
+  \node[thumb, right=1.1cm of pos] (neg) {\includegraphics[width=2.1cm]{thumb_neg.png}};
+  \node[font=\scriptsize, above=1pt of pos, align=center, text=good!70!black] (poslab)
+        {same scene\\inlier $\Rightarrow r_i = +1$};
+  \node[font=\scriptsize, above=1pt of neg, align=center, text=bad!80!black] (neglab)
+        {other scene\\inlier $\Rightarrow r_i = -1$};
+  \draw[arr] (keptcap.south) -- (keptcap.south |- neglab.north);
+  \draw[arr] (pos.west) -- (match.east);
+  \draw[arr, dashed, ours, line width=0.9pt] (match.north) -- (mlp.south)
+        node[midway, right, font=\scriptsize, text=ours, align=left] {REINFORCE\\(\cref{eq:reinforce})};
+  % ---- groups
+  \begin{scope}[on background layer]
+    \node[fit=(det)(cue)(pool), inner sep=5pt, rounded corners=4pt, fill=black!2, draw=black!20,
+          label={[font=\scriptsize\itshape, black!55]above:frozen classical front end}] {};
+    \node[fit=(mlp)(sel), inner sep=5pt, rounded corners=4pt, fill=ours!4, draw=ours!35,
+          label={[font=\scriptsize\itshape, ours]above:learned (\ours)}] {};
+    \node[fit=(match)(pos)(neg)(poslab)(neglab), inner sep=5pt, rounded corners=4pt, fill=black!2,
+          draw=black!20, label={[font=\scriptsize\itshape, black!55]below:reward (training only)}] {};
+  \end{scope}
+\end{tikzpicture}
+\caption{\textbf{\ours.} A classical detector run with lowered thresholds proposes a candidate pool; an MLP
+scores every candidate from 20 local cues and its descriptor, without image coordinates. During training each
+candidate is kept by a Bernoulli draw whose per-image bias $b$ fixes the expected count to the budget $K$; kept
+keypoints are matched and earn $+1$ when they survive RANSAC on a same-scene pair and $-1$ on a different-scene
+pair. At test time the top-$K$ scores are kept and passed to the unchanged pipeline.}
+\label{fig:method}
+\end{figure*}
+
+% ============================================================================ related
+\section{Related work}
+\label{sec:related}
+
+\q{Classical features.} SIFT~\cite{lowe2004sift} detects difference-of-Gaussian extrema;
+ORB~\cite{rublee2011orb} combines oriented FAST~\cite{rosten2006fast} corners, ranked by a Harris score, with
+rotated BRIEF; BRISK~\cite{leutenegger2011brisk} uses AGAST~\cite{mair2010agast} corners and a 512-bit
+sampling-pattern descriptor. All three control the keypoint count with a response threshold and a top-$K$ cut.
+
+\q{Selection and spatial distribution.} Adaptive non-maximal suppression~\cite{brown2005anms,bailo2018ssc}
+keeps strong keypoints that are far apart; ORB-SLAM~\cite{murartal2015orbslam} buckets keypoints into a grid.
+These rules change \emph{where} keypoints are kept, not \emph{how good} each is. We use grid bucketing as a
+baseline and find it a strong one.
+
+\q{Predicting matchability.} Hartmann~\etal~\cite{hartmann2014matchability} classify which SIFT keypoints
+will match, supervised by structure-from-motion tracks. Our policy needs only image-pair labels and is
+trained on the outcome of matching and RANSAC itself.
+
+\q{Learned detectors.} SuperPoint~\cite{detone2018superpoint}, Key.Net~\cite{barroso2019keynet},
+DISK~\cite{tyszkiewicz2020disk} and ALIKED~\cite{zhao2023aliked} learn detectors from depth, pose or
+homography supervision; DISK and RIPE~\cite{kunzel2025ripe} use policy gradients, RIPE with only pair labels.
+These replace the whole feature; we keep the classical one and learn only the selection.
+
+% ============================================================================ method
+\section{Method}
+\label{sec:method}
+
+\q{Candidate pool.} We run the unchanged OpenCV detector with lowered thresholds---FAST threshold 7 with up to
+8K points for ORB, AGAST threshold 10 instead of 30 for BRISK---and keep the $4K$ strongest candidates by
+response. The unchanged OpenCV descriptor is computed for every candidate.
+
+\q{Cues.} Each candidate $i$ is described by $\mathbf{f}_i$: 20 scalar cues followed by its descriptor bits (276
+inputs for ORB, 532 for BRISK). The cues cover response and its rank, scale and pyramid level, near-duplicate
+detections, local density and rank in the neighbourhood, intra-image descriptor distinctiveness, and patch
+statistics (full list in \cref{app:cues}). Image coordinates are deliberately excluded, so the policy cannot
+memorise scene-specific locations.
+
+\q{Budget-exact selection.} An MLP ($\to128\to64\to1$, ReLU) maps $\mathbf{f}_i$ to a score $s_i$. During
+training candidate $i$ is kept, $a_i{=}1$, with probability
+\begin{equation}
+  p_i = \sigma(s_i + b), \qquad b \;\text{such that}\; \textstyle\sum_{i} p_i = K .
+  \label{eq:budget}
+\end{equation}
+Since $\sum_i p_i$ is monotone in $b$, $b$ is found per image by bisection. The expected number of kept
+keypoints is thus fixed to the budget: the policy can change \emph{which} keypoints are kept but not
+\emph{how many}, removing RIPE's keypoint-count regulariser and the quantity--quality trade-off it controls.
+At test time we keep the top-$K$ scores.
+
+\q{Reward.} For a training pair with label $y\in\{\text{same},\text{diff}\}$, kept keypoints are matched by
+mutual nearest neighbour (MNN) and a fundamental matrix is fitted with RANSAC~\cite{larsson2020poselib} at
+1.5\,px on 1200\,px images. Following RIPE, a kept keypoint receives
+\begin{equation}
+  r_i = \begin{cases} +1 & \text{inlier},\; y=\text{same} \\ -1 & \text{inlier},\; y=\text{diff} \\
+  \;\;\,0 & \text{otherwise}, \end{cases}
+  \label{eq:reward}
+\end{equation}
+so negative pairs penalise keypoints that produce confident but meaningless matches.
+
+\q{Training.} We maximise the expected reward with REINFORCE~\cite{williams1992reinforce},
+\begin{equation}
+  \nabla_\theta J = \mathbb{E}\Big[\textstyle\sum_i (r_i - \bar r)\,\nabla_\theta \log
+  \pi_\theta(a_i \mid \mathbf{f}_i)\Big],
+  \label{eq:reinforce}
+\end{equation}
+with the per-image mean reward $\bar r$ as baseline. One step is summarised in \cref{alg:step}.
+
+\begin{figure}[t]
+\centering
+\small
+\refstepcounter{algo}\label{alg:step}
+\fbox{\begin{minipage}{0.95\linewidth}
+\vspace{2pt}
+\textbf{Algorithm \thealgo:} one training step of \ours\\[-1pt]
+\rule{\linewidth}{0.3pt}
+\textbf{Input:} 12 image pairs (50\,\% different-scene), policy $\pi_\theta$, budget $K$\\[-1pt]
+\rule{\linewidth}{0.3pt}
+\begin{enumerate}[nosep,leftmargin=1.4em,label=\arabic*:]
+  \item \textbf{for} each image $I$ in the batch \textbf{do}
+  \item \quad pool $\gets$ top-$4K$ detections; \;$s \gets \pi_\theta(\mathbf{f})$
+  \item \quad solve $b$ with $\sum_i\sigma(s_i{+}b)=K$ \hfill\cref{eq:budget}
+  \item \quad sample $a_i \sim \mathrm{Bernoulli}(\sigma(s_i{+}b))$
+  \item \textbf{for} each pair \textbf{do} MNN + F-RANSAC on kept keypoints
+  \item \quad assign $r_i$ to kept keypoints by pair label \hfill\cref{eq:reward}
+  \item $\bar r \gets$ per-image mean of $r$; \;update $\theta$ with Adam \hfill\cref{eq:reinforce}
+\end{enumerate}
+\vspace{1pt}
+\end{minipage}}
+\end{figure}
+
+% ============================================================================ setup
+\section{Experimental setup}
+\label{sec:setup}
+
+\q{Training.} 350 images each from the IMC-2020~\cite{jin2021imc} scenes \emph{Palace of Westminster} and
+\emph{Grand Place Brussels}; positive pairs are covisible pairs from the COLMAP models, negative pairs are
+drawn across scenes. 1200 steps of 12 pairs, Adam ($10^{-3}$), 40--90 minutes per run on a laptop CPU.
+Checkpoints are selected on the held-out scene \emph{Reichstag}; no test image is used for training or
+selection (hyper-parameters in \cref{app:hparams}).
+
+\q{Benchmarks.} \textbf{MegaDepth-1500}~\cite{li2018megadepth,sun2021loftr}: relative pose on scenes 0015 and
+0022, AUC of the pose error at 5/10/20$^\circ$, $K{=}2048$, 500 evenly spaced pairs covering both scenes.
+\textbf{HPatches}~\cite{balntas2017hpatches}: homography on 540 pairs, AUC of the corner error at
+1/3/5\,px, $K{=}1024$.
+
+\q{Protocol.} Within a table every row shares the image, candidate pool, budget, OpenCV descriptor, MNN
+matcher and PoseLib RANSAC~\cite{larsson2020poselib} (100k iterations, fixed seed). The RANSAC threshold is
+tuned for vanilla OpenCV and reused for all rows, which favours the baseline.
+
+\q{Baselines.} \emph{Vanilla}: OpenCV defaults. \emph{Pool, top-$K$ response}: our candidate pool ranked by
+response. \emph{Pool, grid}: the same pool in a $16{\times}16$ grid, taken round-robin by response as in
+ORB-SLAM. \emph{Supervised}: our network trained with binary cross-entropy on the RANSAC inlier labels of the
+full pool, which isolates the effect of RL.
+
+\q{Statistics.} \ours rows are means over three seeds ($\pm$ sample std). Significance is a paired bootstrap
+over test pairs (2000 resamples, 95\,\% CI) of the difference in mean AUC.
+
+% ============================================================================ results
+\begin{table*}[t]
+\centering
+\small
+\setlength\tabcolsep{4.5pt}
+\begin{tabular}{@{}l c c c c
+                 c c c c@{}}
+\toprule
+& \multicolumn{4}{c}{ORB} & \multicolumn{4}{c}{BRISK} \\
+\tabinput{tables/main_rows.tex}
+\bottomrule
+\end{tabular}
+\caption{\textbf{Main results.} AUC (\%) of the pose error on MegaDepth-1500 (500 pairs) and of the homography
+corner error on HPatches. Every row uses the same images, budget, descriptor, matcher and RANSAC; the pool rows,
+supervised and \ours select from the same candidate pool. \ours: mean over three seeds, $\pm$ std of the mean
+AUC. \textbf{Bold}: best, \underline{underlined}: second best.}
+\label{tab:main}
+\end{table*}
+
+\section{Results}
+\label{sec:results}
+
+\q{MegaDepth.} \Cref{tab:main} (top) shows that learned selection improves on OpenCV for both detectors, by
+\textbf{+8.8} mean AUC for ORB and \textbf{+4.7} for BRISK. The three ORB seeds agree to within 0.2 AUC, the
+BRISK seeds to within 2.4 (\cref{tab:seeds}). The improvement holds at every threshold
+(\cref{fig:auc}) and is significant against vanilla and against response ranking of the same pool
+(\cref{fig:forest}). Per pair, \ours improves 47\,\% of the ORB pairs and worsens 27\,\% (BRISK: 47\,\% and
+35\,\%); the rest are unchanged. The spatial grid on the same pool is the strongest baseline: \ours is ahead by
+1.2 for ORB and behind by 2.0 for BRISK, neither difference significant.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{auc_curves.pdf}
+  \caption{\textbf{Pose AUC vs.\ error threshold} on MegaDepth. Band: range over three \ours seeds.}
+  \label{fig:auc}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{forest.pdf}
+  \caption{\textbf{Paired bootstrap} differences in mean AUC with 95\,\% CIs (seed-0 policy). Grey: the
+  interval includes zero.}
+  \label{fig:forest}
+\end{figure}
+
+\q{HPatches.} On HPatches (\cref{tab:main}, bottom) \ours is on par with vanilla ($-0.1$ for ORB, $+0.3$ for
+BRISK) and significantly below the grid (\cref{fig:forest}). The scenes are planar and well textured, so
+almost every textured keypoint is valid and selection matters little; the policy was also trained at 1200\,px
+on outdoor photographs, while HPatches images are about 480\,px.
+
+\q{Published numbers.} Our protocol reproduces the published SIFT row of RIPE~\cite{kunzel2025ripe} on
+MegaDepth to within 1.4 AUC at 5$^\circ$ (38.7 \vs 37.3). RIPE itself, which learns detector and descriptor,
+stays far ahead (55.1 AUC@5$^\circ$): \ours can only choose among the classical candidates.
+
+% ============================================================================ analysis
+\section{Analysis}
+\label{sec:analysis}
+
+\q{Is there anything to learn?} \Cref{fig:matchability} bins pool candidates by response quartile: on
+MegaDepth the share that becomes a correct match only falls from 8\,\% to 4--6\,\% between the strongest
+and the weakest quartile, and top-$K$ by response keeps only 40--44\,\% of the pool's correct matches.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\linewidth]{matchability.pdf}
+  \caption{\textbf{Response is a weak cue.} Share of candidates that become correct matches, by response
+  quartile (MD: MegaDepth, HP: HPatches); legend: ROC-AUC of response as a predictor.}
+  \label{fig:matchability}
+\end{figure}
+
+\q{Is it the larger pool?} No. Ranking the same pool by response \emph{lowers} ORB accuracy by 3.9 AUC,
+while the learned ranking raises it by 8.8; \ours beats pool top-$K$ by +12.6 (ORB) and +3.7 (BRISK), both
+significant (\cref{fig:forest}).
+
+\q{Does RL matter?} For ORB, \ours beats the supervised model trained on the same RANSAC pseudo-labels by
++5.7 [+3.1, +8.2]; for BRISK the two are equal ($-0.5$ [$-2.9$, +1.9]). An obvious explanation is the
+negative-pair penalty, which supervised labels never see. We tested it on 50 MegaDepth pairs, each also
+matched against an image of the other scene, and it is \emph{not} supported: for ORB, \ours lowers the mean
+number of RANSAC inliers on these negative pairs only from 21.8 to 19.5, and the ratio of inliers on positive
+to negative pairs is unchanged (7.0 \vs 7.1). For BRISK the ratio improves (8.4 \vs 6.2) but RL and supervised
+are equal. Why RL helps ORB remains open; one untested explanation is that RL learns from matches among
+\emph{sampled} subsets of the pool, as at test time, whereas the supervised labels are computed once on the
+full pool.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength\tabcolsep{3.2pt}
+\begin{tabular}{@{}ll c c c c
+                c c@{}}
+\toprule
+& & \multicolumn{3}{c}{MMA (\%)} & {Inl.} & {Cov.} & {Time} \\
+\cmidrule(lr){3-5}
+& & {@1\,px} & {@3\,px} & {@5\,px} & {(\%)} & {(\%)} & {(ms)} \\
+\midrule
+\tabinput{tables/matched_rows.tex}
+\bottomrule
+\end{tabular}
+\caption{\textbf{Quality, coverage and cost} on MegaDepth (seed 0). MMA: share of MNN matches with
+epipolar error below the threshold. Inl.: RANSAC inlier ratio. Cov.: share of $16{\times}16$ cells containing
+a RANSAC inlier (50 pairs). Time: median single-thread detection and selection per image, measured in
+isolation.}
+\label{tab:quality}
+\end{table}
+
+\q{Quality or coverage?} \ours and the grid reach similar pose accuracy by opposite routes
+(\cref{tab:quality}). The grid lowers match precision and inlier ratio (ORB inlier ratio 24.0\,\% $\to$
+17.6\,\%) but spreads its inliers over the image: 12.3\,\% of grid cells contain an inlier for ORB, against
+7.6\,\% for vanilla. \ours keeps or raises precision (BRISK inlier ratio 22.2\,\% $\to$ 24.5\,\%) and covers
+more than vanilla but less than the grid (9.7\,\%; \cref{fig:coverage}). With no coordinates as input and a
+per-keypoint reward, the policy has no incentive to cover the image, which robust pose estimation also
+rewards. A coverage-aware reward is the natural next step.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{coverage.pdf}
+  \caption{\textbf{Where the kept keypoints are.} Density of the 2048 kept ORB keypoints on the first image of
+  \cref{fig:teaser}. Titles: share of $16{\times}16$ cells containing a RANSAC inlier, averaged over 50
+  MegaDepth pairs.}
+  \label{fig:coverage}
+\end{figure}
+
+\q{What does it cost?} The policy needs the larger pool and the cues. In an isolated single-thread benchmark
+(median of 20 MegaDepth images) the pipeline takes 838\,ms per image for ORB and 1077\,ms for BRISK, against 20
+and 81\,ms for OpenCV---$42\times$ and $13\times$ (\cref{fig:pareto}). About 740\,ms of this is cue computation
+in unoptimised Python; the MLP takes 27--41\,ms and the final selection about 1\,ms. The grid costs only the pool
+extraction (70 and 295\,ms), which makes it the better accuracy--cost trade-off today.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{pareto.pdf}
+  \caption{\textbf{Accuracy vs.\ cost} on MegaDepth. \ours: three-seed mean $\pm$ std; supervised shares its
+  runtime.}
+  \label{fig:pareto}
+\end{figure}
+
+% ============================================================================ limitations / conclusion
+\section{Limitations}
+\label{sec:limitations}
+Training uses two scenes (700 images), no hyper-parameter search and one validation scene; RIPE uses the DISK
+MegaDepth subset and about three GPU-days. MegaDepth results use 500 of the 1500 pairs; RL rows use three seeds,
+and the ablations and bootstrap tests use seed 0. Cue computation makes selection slow. For SIFT and SURF learned
+selection does not help (\cref{app:siftsurf}).
+
+\section{Conclusion}
+\label{sec:conclusion}
+RIPE's pair-label reward transfers to classical features as a keypoint selection policy. Without changing
+detector, descriptor or matcher, \ours raises match precision and improves relative pose on MegaDepth for ORB and
+BRISK, and for ORB reinforcement learning clearly beats supervised training on the same labels. A free spatial
+heuristic, however, reaches similar pose accuracy through coverage rather than quality. Learning quality while
+enforcing coverage---in the reward or in the selection rule---is the clear next step.
+
+{
+  \small
+  \bibliographystyle{ieeenat_fullname}
+  \bibliography{refs}
+}
+
+% ============================================================================ supplementary
+\clearpage
+\setcounter{page}{1}
+\onecolumn
+\appendix
+\begin{center}
+  {\Large\bfseries Supplementary Material}\\[0.4em]
+  {\large Learning Which Keypoints to Keep}
+\end{center}
+\vspace{1em}
+
+\section{SIFT and SURF}
+\label{app:siftsurf}
+We ran the same pipeline for SIFT and SURF; neither supports a claim that learned selection helps, which is why
+the main paper covers ORB and BRISK (\cref{tab:siftsurf}).
+\textbf{SIFT.} The three-seed mean improves on vanilla by +3.3 mean AUC on MegaDepth, but the gain depends on the
+seed (+6.4, +3.3 and +0.1 for seeds 0--2) and is not significant across seeds ($p{=}0.21$, one-sample $t$-test on
+the seed gains). About 2.4 of the 3.3 points come from ranking the larger pool by response; the grid gains more
+(+5.1, significant), and the supervised model is at least as good as RL. On HPatches RL selection is
+significantly worse than vanilla ($-1.4$ [$-2.4$, $-0.3$]). SIFT's response is already more informative (the
+correct-match rate falls from 10.4\,\% to 6.0\,\% over the quartiles), leaving less room for learned selection.
+\textbf{SURF.} Learned selection hurts on MegaDepth: $-5.3$ mean AUC against vanilla for seed 0, also for
+supervised training and for a residual policy initialised at the response ranking. On the validation scene the
+supervised model had helped (+3.6), so the policy overfits to the training landmarks.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+MegaDepth AUC @5/10/20$^\circ$ & SIFT & SURF \\
+\midrule
+Vanilla OpenCV        & 38.7 / 51.8 / 63.2 & \B{33.7} / \B{47.0} / \B{60.2} \\
+Pool, top-$K$ response & 40.6 / 54.1 / 66.2 & 33.0 / 46.7 / \B{60.2} \\
+Pool, grid            & \B{43.3} / 56.9 / 68.7 & 31.3 / 44.7 / 57.8 \\
+Supervised            & 42.5 / \B{57.1} / \B{69.9} & 28.6 / 42.9 / 58.0 \\
+\ours (SIFT: 3 seeds; SURF: seed 0) & 41.0$\pm$2.4 / 55.3$\pm$3.3 / 67.3$\pm$3.7 & 27.0 / 41.8 / 56.1 \\
+\bottomrule
+\end{tabular}
+\caption{SIFT and SURF on MegaDepth-1500 (500 pairs, $K{=}2048$). Bold: best per column.}
+\label{tab:siftsurf}
+\end{table}
+
+\section{Per-seed results}
+\label{app:seeds}
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}ll c c c c
+                c c c@{}}
+\toprule
+& & \multicolumn{3}{c}{MegaDepth AUC} & \multicolumn{3}{c}{HPatches AUC} & {Val.} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}
+& & {@5$^\circ$} & {@10$^\circ$} & {@20$^\circ$} & {@1\,px} & {@3\,px} & {@5\,px} & {AUC} \\
+\midrule
+\tabinput{tables/seeds_rows.tex}
+\bottomrule
+\end{tabular}
+\caption{\ours per training seed. Val.: best mean AUC on the held-out \emph{Reichstag} scene, used for
+checkpoint selection (plain response: ORB 17.2, BRISK 46.5).}
+\label{tab:seeds}
+\end{table}
+
+\section{Additional qualitative results}
+\label{app:qual}
+\Cref{fig:supp_brisk} shows the BRISK pair whose per-pair gain is closest to the BRISK mean gain;
+\cref{fig:supp_fail} shows an ORB pair on which \ours is worse than vanilla, chosen as the pair whose loss is
+closest to the mean ORB gain with opposite sign. In the failure case all three selections recover the pose
+roughly (8.5--10.6$^\circ$), and \ours has more correct inliers but concentrated in a smaller region.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\linewidth]{supp_brisk_rep.pdf}
+  \caption{BRISK, representative pair (per-pair gain 5.8 \vs mean 5.8 AUC points).}
+  \label{fig:supp_brisk}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\linewidth]{supp_orb_fail.pdf}
+  \caption{ORB, failure case (per-pair change $-8.6$ AUC points).}
+  \label{fig:supp_fail}
+\end{figure}
+
+\section{Per-candidate cues}
+\label{app:cues}
+The 20 scalar cues computed for every pool candidate:
+(1)~log response; (2)~log response standardised over the image; (3)~response rank in the pool; (4)~log size;
+(5)~pyramid octave; (6)~layer within the octave (SIFT only, otherwise 0); (7)~number of other detections within
+0.5\,px; (8)~number of candidates within 16\,px; (9)~response rank among those neighbours; (10,~11)~distance to
+the nearest and second-nearest other descriptor in the same image, normalised by the image median; (12)~their
+ratio; (13--15)~mean intensity, intensity standard deviation and mean gradient magnitude in a box of radius
+$0.75\times$ size; (16,~17)~mean and standard deviation relative to the whole image; (18)~log pool size;
+(19,~20)~image mean intensity and standard deviation. They are followed by the descriptor as $\pm1$ bits (256 for
+ORB, 512 for BRISK).
+
+\section{Hyper-parameters and protocol}
+\label{app:hparams}
+\begin{center}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Pool & $4K$ candidates (8192 at $K{=}2048$); ORB: FAST thr.\ 7, up to 8K; BRISK: AGAST thr.\ 10 (default 30) \\
+Policy & MLP, inputs $\to$ 128 $\to$ 64 $\to$ 1, ReLU \\
+Training & 1200 steps $\times$ 12 pairs, 50\,\% negative, $K{=}2048$, Adam with learning rate $10^{-3}$ \\
+Reward RANSAC & fundamental matrix, 1.5\,px at 1200\,px, 2000 iterations \\
+REINFORCE baseline & per-image mean reward \\
+Validation & every 100 steps, 96 pairs of \emph{Reichstag} \\
+Test RANSAC & PoseLib, 100k iterations, seed 0 \\
+RANSAC threshold & tuned on vanilla: MegaDepth 1.0\,px (from 1.0, 1.5); HPatches ORB 2\,px, BRISK 4\,px (from 1, 2, 3, 4, 6) \\
+Runtime & single thread, warm-up pass, median over 20 images (\texttt{timing\_benchmark.py}) \\
+\bottomrule
+\end{tabular}
+\captionof{table}{Training and evaluation settings.}
+\label{tab:hparams}
+\end{center}
+
+\end{document}

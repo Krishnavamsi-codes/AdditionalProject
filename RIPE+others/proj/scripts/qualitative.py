@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cfeat import datasets, extract, match, metrics, policy  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
+NAMES = {"vanilla": "Vanilla (OpenCV)", "pool_grid": "Pool, grid", "RL (RIPE-Select), top-K": "RIPE-Select"}
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
@@ -21,6 +22,7 @@ if __name__ == "__main__":
     ap.add_argument("--pair", type=int, default=300, help="index into the 500-pair MegaDepth subset")
     ap.add_argument("--k", type=int, default=2048)
     ap.add_argument("--th", type=float, default=1.5)
+    ap.add_argument("--fontsize", type=float, default=10)
     ap.add_argument("--out", default=str(ROOT / "runs" / "report"))
     a = ap.parse_args()
     pol = policy.NumpyPolicy(ROOT / "runs" / "train" / f"{a.method}_rl_s0" / "best.npz")
@@ -50,8 +52,8 @@ if __name__ == "__main__":
         ax.scatter(f1["xy"][:, 0] + w0, f1["xy"][:, 1], s=1, c="yellow", alpha=.5)
         for q0, q1, g in zip(p0[inl], p1[inl], good[inl]):
             ax.plot([q0[0], q1[0] + w0], [q0[1], q1[1]], lw=.4, c="lime" if g else "red", alpha=.7)
-        ax.set_title(f"{a.method.upper()} {v}: K={len(f0['xy'])}, {len(m)} MNN, {inl.sum()} RANSAC inliers "
-                     f"({good[inl].sum()} GT-correct), pose error {err:.1f}°", fontsize=10)
+        ax.set_title(f"{NAMES.get(v, v)}: {inl.sum()} RANSAC inliers "
+                     f"({good[inl].sum()} correct), pose error {err:.1f}°", fontsize=a.fontsize)
     fig.tight_layout()
     Path(a.out).mkdir(parents=True, exist_ok=True)
     fig.savefig(Path(a.out) / f"qualitative_{a.method}_pair{a.pair}.png", dpi=110)
