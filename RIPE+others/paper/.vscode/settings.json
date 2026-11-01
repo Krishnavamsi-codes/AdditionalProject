@@ -1,0 +1,16 @@
+{
+  // LaTeX Workshop: build on save with pdflatex + bibtex (latexmk needs Perl, which is not installed)
+  "latex-workshop.latex.autoBuild.run": "onSave",
+  "latex-workshop.view.pdf.viewer": "tab",
+  "latex-workshop.latex.recipe.default": "pdflatex-bibtex",
+  "latex-workshop.latex.recipes": [
+    { "name": "pdflatex-bibtex", "tools": ["pdflatex", "bibtex", "pdflatex", "pdflatex"] }
+  ],
+  "latex-workshop.latex.tools": [
+    { "name": "pdflatex", "command": "pdflatex",
+      "args": ["-synctex=1", "--disable-installer", "--include-directory=texmf",
+               "-interaction=nonstopmode", "-file-line-error", "%DOC%"] },
+    { "name": "bibtex", "command": "bibtex", "args": ["%DOCFILE%"] }
+  ],
+  "latex-workshop.latex.clean.subfolder.enabled": true
+}
