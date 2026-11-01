@@ -1,0 +1,31 @@
+[orb] pair 0/50  16s
+[orb] pair 10/50  125s
+[orb] pair 20/50  253s
+[orb] pair 30/50  373s
+[orb] pair 40/50  500s
+{
+ "vanilla": {
+  "kp_cov": 0.307890625,
+  "inl_cov": 0.07640625,
+  "pos_inl": 155.56,
+  "neg_inl": 21.82,
+  "neg_ok": 1.0,
+  "neg_inl_median": 22.0
+ },
+ "pool_grid": {
+  "kp_cov": 0.509375,
+  "inl_cov": 0.122890625,
+  "pos_inl": 104.2,
+  "neg_inl": 16.48,
+  "neg_ok": 0.94,
+  "neg_inl_median": 16.0
+ },
+ "rl": {
+  "kp_cov": 0.4084375,
+  "inl_cov": 0.09703125,
+  "pos_inl": 136.82,
+  "neg_inl": 19.46,
+  "neg_ok": 1.0,
+  "neg_inl_median": 19.0
+ }
+}
